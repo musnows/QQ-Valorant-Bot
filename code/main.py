@@ -18,12 +18,12 @@ from utils.Gtime import GetTime
 _log = logging.get_logger()
 
 # help命令文字
-def help_text():
+def help_text(bot_id:str):
     text = "以下为bot的命令列表\n"
     text+= "「/login 账户 密码」登录拳头账户，必须私聊使用\n"
     text+= "「/tfa 验证码」提供邮箱验证码，必须私聊使用\n"
-    text+= "「@机器人 /shop」查询商店\n"
-    text+= "「@机器人 /uinfo」查询用户vp/rp/等级\n"
+    text+=f"「<@{bot_id}> /shop」查询商店\n"
+    text+=f"「<@{bot_id}> /uinfo」查询用户vp/rp/等级\n"
     return text
 
 class MyClient(botpy.Client):
@@ -110,7 +110,7 @@ class MyClient(botpy.Client):
     
     # 帮助命令
     async def help_cmd(self, msg: Message):
-        text = help_text()
+        text = help_text(self.robot.id)
         await msg.reply(content=text)
         _log.info(f"[help] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id}")
 
@@ -134,7 +134,7 @@ class MyClient(botpy.Client):
     async def on_at_message_create(self, message: Message):
         #await self.handle_send_markdown_by_content(message.channel_id, message.id)
         content = message.content
-        if '/ahri' in content:
+        if '/ahri' in content or '/help' in content:
             await self.help_cmd(message)
         elif '/login' in content or '/tfa' in content:
             await message.reply(content=f"为了您的隐私，「/login」和「/tfa」命令仅私聊可用！")

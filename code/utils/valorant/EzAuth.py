@@ -285,8 +285,7 @@ async def auth2faWait(key, msg=None):
             if not User2faCode[key]['2fa_status']:
                 print(f"[auth2faWait] k:{key} 2fa Wait")
                 if msg != None:
-                    await msg.reply(f"您开启了邮箱双重验证，请使用「/tfa {key} 邮箱码」的方式验证\n栗子：若邮箱验证码为114514，那么您应该键入 `/tfa {key} 114514`"
-                                    )
+                    await msg.reply(content=f"您开启了邮箱双重验证，请使用「/tfa {key} 邮箱码」的方式验证\n栗子：若邮箱验证码为114514，那么您应该键入 「/tfa {key} 114514」")
 
             # 开始循环检测status状态
             while (not User2faCode[key]['status']):
