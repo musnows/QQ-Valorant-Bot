@@ -6,13 +6,15 @@ import os
 
 import botpy
 from botpy import logging
+from typing import Union
+from aiohttp import client_exceptions
 
 from botpy.message import Message,DirectMessage
 from botpy.types.message import MarkdownPayload, MessageMarkdownParams
-from utils.FileManage import bot_config,UserTokenDict,UserAuthDict,save_all_file
+from utils.FileManage import bot_config,UserTokenDict,UserAuthDict,UserApLog,save_all_file
 from utils.valorant.ShopApi import *
 from utils.valorant.Val import fetch_daily_shop,fetch_vp_rp_dict
-from utils.valorant.EzAuth import EzAuth,EzAuthExp,Get2faWait_Key,auth2faWait,auth2fa
+from utils.valorant.EzAuth import EzAuth,EzAuthExp,Get2faWait_Key,auth2faWait,auth2fa,authflow
 from utils.Gtime import GetTime
 
 # 日志
@@ -27,6 +29,86 @@ def help_text(bot_id:str):
     text+=f"「<@{bot_id}> /uinfo」查询用户vp/rp/等级\n"
     return text
 
+# cookie重新登录
+async def login_reauth(user_id: str):
+    base_print = f"[{GetTime()}] Au:{user_id} = "
+    print(base_print + "auth_token failure,trying reauthorize()")
+    global UserAuthDict,UserTokenDict
+    auth = UserAuthDict[user_id]['auth']
+    #用cookie重新登录,会返回一个bool是否成功
+    ret = await auth.reauthorize()
+    if ret:  #会返回一个bool是否成功,成功了重新赋值
+        UserAuthDict[user_id]['auth'] = auth
+        print(base_print + "reauthorize() Successful!")
+    else:  # cookie重新登录失败
+        print(base_print + "reauthorize() Failed! T-T")  # 失败打印
+        # 有保存账户密码+不是邮箱验证用户
+        if user_id in UserAuthDict['AP'] and (not UserAuthDict[user_id]['2fa']):
+            res_auth = await authflow(UserAuthDict['AP'][user_id]['a'], UserAuthDict['AP'][user_id]['p'])
+            UserAuthDict[user_id]['auth'] = res_auth  # 用账户密码重新登录
+            res_auth._cookie_jar.save(f"./log/cookie/{user_id}.cke")  #保存cookie
+            # 记录使用账户密码重新登录的时间
+            UserApLog[user_id][GetTime()] = UserTokenDict[user_id]['GameName']
+            print(base_print + "authflow() by AP")
+            ret = True
+    # 正好返回auth.reauthorize()的bool
+    return ret  
+
+
+# 判断是否需要重新获取token
+async def check_reauth(def_name: str = "", msg: Union[Message, str] = ''):
+    """
+    return value:
+     - True: no need to reauthorize / get `user_id` as params & reauhorize success 
+     - False: unkown err / reauthorize failed
+    """
+    user_id = "[ERR!]"  #先给userid赋值，避免下方打印的时候报错（不出意外是会被下面的语句修改的）
+    try:
+        is_msg = isinstance(msg, Message)  #判断传入的类型是不是消息
+        user_id = msg.author.id if is_msg else msg # 如果是str就直接用
+        auth = UserAuthDict[user_id]['auth']
+        userdict = {
+            'auth_user_id': auth.user_id,
+            'access_token': auth.access_token,
+            'entitlements_token': auth.entitlements_token
+        }
+        resp = await fetch_vp_rp_dict(userdict)
+        # resp={'httpStatus': 400, 'errorCode': 'BAD_CLAIMS', 'message': 'Failure validating/decoding RSO Access Token'}
+        # 如果没有这个键，会直接报错进except; 如果有这个键，就可以继续执行下面的内容
+        key_test = resp['httpStatus']
+        # 如果传入的是msg，则提示用户
+        if is_msg:  
+            text = f"获取「{def_name}」失败！正在尝试重新获取token，您无需操作"
+            await msg.reply(content=f"{text}\n{resp['message']}")
+        # 不管传入的是用户id还是msg，都传userid进入该函数
+        ret = await login_reauth(user_id)
+        if ret == False and is_msg:  #没有正常返回,重新获取token失败
+            text = f"重新获取token失败，请私聊「/login」重新登录\n"
+            await msg.reply(content=f"{text}\nAuto Reauthorize Failed!")
+
+        return ret  #返回真/假
+    except client_exceptions.ClientResponseError as result:
+        err_str = f"[Check_re_auth] aiohttp ERR!\n```\n{traceback.format_exc()}\n```\n"
+        if 'auth.riotgames.com' and '403' in str(result):
+            global Login_Forbidden
+            Login_Forbidden = True
+            err_str += f"[Check_re_auth] 403 err! set Login_Forbidden = True"
+        elif '404' in str(result):
+            err_str += f"[Check_re_auth] 404 err! network err, try again"
+        else:
+            err_str += f"[Check_re_auth] Unkown aiohttp ERR!"
+        # 登陆失败
+        _log.info(err_str)
+        return False
+    except Exception as result:
+        if 'httpStatus' in str(result):
+            _log.info(f"[Check_re_auth] Au:{user_id} No need to reauthorize [{result}]")
+            return True
+        else:
+            _log.info(f"[Check_re_auth] Unkown ERR!\n{traceback.format_exc()}")
+            return False
+
+# bot main
 class MyClient(botpy.Client):
     async def on_ready(self):
         _log.info(f"robot 「{self.robot.name}」 on_ready!")
@@ -99,6 +181,18 @@ class MyClient(botpy.Client):
                 text = f"遇到不常见的KeyError，可能👊Api服务器炸了"
             # 发送信息
             await msg.reply(content=text)
+        except client_exceptions.ClientResponseError as result:
+            err_str = f"ERR! [{GetTime()}] login Au:{msg.author_id}\n```\n{traceback.format_exc()}\n```\n"
+            if 'auth.riotgames.com' and '403' in str(result):
+                Login_Forbidden = True
+                err_str += f"[Login] 403 err! set Login_Forbidden = True"
+            elif '404' in str(result):
+                err_str += f"[Login] 404 err! network err, try again"
+            else:
+                err_str += f"[Login] Unkown aiohttp ERR!"
+            # 打印+发送消息
+            _log.info(err_str)
+            await msg.reply(content=err_str)
         except Exception as result:
             _log.info(f"ERR! [{GetTime()}] login Au:{msg.author.id}\n{traceback.format_exc()}")
             text=f"出现了错误！\n{traceback.format_exc()}"
@@ -122,7 +216,8 @@ class MyClient(botpy.Client):
             return
         try:
             # 1.判断是否需要重新reauth
-            # ....
+            reau = await check_reauth("每日商店", msg)
+            if reau == False: return  # 如果为假说明重新登录失败，直接退出
             
             # 2.重新获取token成功，从dict中获取玩家昵称
             player_gamename = f"{UserTokenDict[msg.author.id]['GameName']}#{UserTokenDict[msg.author.id]['TagLine']}"
