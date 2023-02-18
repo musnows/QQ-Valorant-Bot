@@ -11,6 +11,7 @@ from botpy.message import Message,DirectMessage
 from botpy.types.message import MarkdownPayload, MessageMarkdownParams
 from utils.FileManage import bot_config,UserTokenDict,UserAuthDict,save_all_file
 from utils.valorant.ShopApi import *
+from utils.valorant.Val import fetch_daily_shop,fetch_vp_rp_dict
 from utils.valorant.EzAuth import EzAuth,EzAuthExp,Get2faWait_Key,auth2faWait,auth2fa
 from utils.Gtime import GetTime
 
@@ -45,7 +46,7 @@ class MyClient(botpy.Client):
     
     # 登录命令
     async def login_cmd(self,msg:Message,account:str,passwd:str):
-        global login_rate_limit
+        global login_rate_limit,UserAuthDict,UserTokenDict
         try:
             # 1.检查全局登录速率
             await check_global_loginRate()  # 无须接收此函数返回值，直接raise
@@ -116,15 +117,59 @@ class MyClient(botpy.Client):
 
     # 获取商店
     async def shop_cmd(self,msg:Message):
-        img_bytes=None
-        # 发送图片
-        await self.api.post_dms(
-            guild_id=msg.guild_id,
-            content=f"成功获取您的商店！",
-            msg_id=msg.id,
-            file_image=img_bytes
-        )
-        return
+        if msg.author.id not in UserAuthDict:
+            await msg.reply(content=f"您尚未登录，请私聊使用「/login 账户 密码」登录")
+            return
+        try:
+            # 1.判断是否需要重新reauth
+            # ....
+            
+            # 2.重新获取token成功，从dict中获取玩家昵称
+            player_gamename = f"{UserTokenDict[msg.author.id]['GameName']}#{UserTokenDict[msg.author.id]['TagLine']}"
+            # 2.1 提示正在获取商店
+            await msg.reply(content=f"正在获取玩家「{player_gamename}」的每日商店")
+
+            # 2.2 计算获取每日商店要多久
+            start_time = time.perf_counter()  #开始计时
+            # 2.3 从auth的dict中获取RiotAuth对象
+            auth = UserAuthDict[msg.author.id]['auth']
+            userdict = {
+                'auth_user_id': auth.user_id,
+                'access_token': auth.access_token,
+                'entitlements_token': auth.entitlements_token
+            }
+            log_time = ""
+            shop_api_time = time.time() # api调用计时
+            # 3.api获取每日商店
+            resp = await fetch_daily_shop(userdict)  
+            list_shop = resp["SkinsPanelLayout"]["SingleItemOffers"]  # 商店刷出来的4把枪
+            timeout = resp["SkinsPanelLayout"]["SingleItemOffersRemainingDurationInSeconds"]  # 剩余时间
+            timeout = time.strftime("%H:%M:%S", time.gmtime(timeout))  # 将秒数转为标准时间
+            log_time += f"[Api.shop] {format(time.time()-shop_api_time,'.4f')} "
+            # 4.api获取用户vp/rp
+            vrDict = await fetch_vp_rp_dict(userdict)
+            # 5.请求shop-draw接口，获取返回值
+            draw_time = time.time() # 开始画图计时
+            ret = await shop_draw_get(list_shop=list_shop,vp=vrDict['vp'],rp=vrDict['rp'])
+            if ret['code']: # 出现错误
+                raise Exception(f"shop-draw err! {ret}")
+            # 返回成功
+            log_time += f"- [Drawing] {format(time.time() - draw_time,'.4f')} - [Au] {msg.author.id}"
+            _log.info(log_time)
+            # 6.一切正常，获取图片bytes
+            _log.info(f"[imgUrl] {ret['message']}")
+            img_bytes= await shop_img_load(ret['message'],key=msg.author.id)
+            # 7.发送图片
+            shop_using_time = format(time.perf_counter() - start_time, '.2f') # 结束总计时
+            await msg.reply(
+                content=f"玩家「{player_gamename}」的商店\n本次查询耗时：{shop_using_time}",
+                file_image=img_bytes
+            )
+            _log.info(
+                f"[{GetTime()}] Au:{msg.author.id} daily_shop reply success [{shop_using_time}]"
+            )
+        except:
+            _log.info(f"[{GetTime()}] shop Au:{msg.author.id}\n{traceback.format_exc()}")
 
     # 获取uinfo
     async def uinfo_cmd(self,msg:Message):
