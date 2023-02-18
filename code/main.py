@@ -8,12 +8,21 @@ from botpy import logging
 
 from botpy.message import Message,DirectMessage
 from botpy.types.message import MarkdownPayload, MessageMarkdownParams
-from utils import bot_config,shop_url_post,tfa_code_post,help_text
+from utils.ShopApi import bot_config,shop_url_post,tfa_code_post
+from utils.Gtime import GetTime
 from PIL import Image
 
 
 _log = logging.get_logger()
 
+# help命令文字
+def help_text():
+    text = "以下为bot的命令列表\n"
+    text+= "「/login 账户 密码」登录拳头账户，必须私聊使用\n"
+    text+= "「/tfa 验证码」提供邮箱验证码，必须私聊使用\n"
+    text+= "「@机器人 /shop」查询商店\n"
+    text+= "「@机器人 /uinfo」查询用户vp/rp/等级\n"
+    return text
 
 class MyClient(botpy.Client):
     async def on_ready(self):
@@ -63,11 +72,8 @@ class MyClient(botpy.Client):
 
 
 if __name__ == "__main__":
-    # 通过预设置的类型，设置需要监听的事件通道
-    # intents = botpy.Intents.none()
-    # intents.public_guild_messages=True
-
     # 通过kwargs，设置需要监听的事件通道
+    print(f"[BOT.START] start at {GetTime()}")
     intents = botpy.Intents(public_guild_messages=True,direct_message=True)
     client = MyClient(intents=intents)
     client.run(appid=bot_config["appid"], token=bot_config["token"])
