@@ -138,7 +138,7 @@ class MyClient(botpy.Client):
             await msg.reply(content=f"正在获取您的账户token和cookie")
 
             # 3.登录，获取用户的token
-            key = await Get2faWait_Key() # 先获取一个key
+            key = msg.author.id # 用用户id做key
             # 如果使用异步运行该函数，执行流会被阻塞住等待，应该使用线程来操作
             th = threading.Thread(target=auth2fa, args=(account, passwd, key))
             th.start()
@@ -202,11 +202,11 @@ class MyClient(botpy.Client):
     
 
     # 邮箱验证
-    async def tfa_cmd(self,msg:Message,key:str,vcode:str):
+    async def tfa_cmd(self,msg:Message,vcode:str):
         _log.info(f"[tfa] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id}")
         try:
             global User2faCode
-            key = int(key)
+            key = msg.author.id
             if key in User2faCode:
                 User2faCode[key]['vcode'] = vcode
                 User2faCode[key]['2fa_status']=True
@@ -320,9 +320,8 @@ class MyClient(botpy.Client):
             await self.login_cmd(message,account=content[first+1:second],passwd=content[second+1:])
         elif '/tfa' in content:
             # /tfa key vcode
-            first = content.find(' ') #第一个空格
-            second = content.rfind(' ')#第二个空格
-            await self.tfa_cmd(message,key=content[first+1:second],vcode=content[second+1:])
+            first = content.rfind(' ') #第一个空格
+            await self.tfa_cmd(message,vcode=content[first+1:])
         elif '/shop' in content or '/store' in content:
             await self.shop_cmd(message)
         elif '/uinfo' in content:
