@@ -10,15 +10,16 @@ from typing import Union
 from aiohttp import client_exceptions
 
 from botpy.message import Message,DirectMessage
-from botpy.types.message import MarkdownPayload, MessageMarkdownParams
+from botpy.types.message import MarkdownPayload
 from utils.FileManage import bot_config,UserTokenDict,UserAuthDict,UserApLog,save_all_file
 from utils.valorant.ShopApi import *
 from utils.valorant.Val import fetch_daily_shop,fetch_vp_rp_dict
-from utils.valorant.EzAuth import EzAuth,EzAuthExp,Get2faWait_Key,auth2faWait,auth2fa,authflow
+from utils.valorant.EzAuth import EzAuthExp,Get2faWait_Key,auth2faWait,auth2fa,authflow,User2faCode
 from utils.Gtime import GetTime
 
 # 日志
 _log = logging.get_logger()
+Login_Forbidden = False
 
 # help命令文字
 def help_text(bot_id:str):
@@ -128,7 +129,8 @@ class MyClient(botpy.Client):
     
     # 登录命令
     async def login_cmd(self,msg:Message,account:str,passwd:str):
-        global login_rate_limit,UserAuthDict,UserTokenDict
+        _log.info(f"[login] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id}")
+        global login_rate_limit,UserAuthDict,UserTokenDict,Login_Forbidden
         try:
             # 1.检查全局登录速率
             await check_global_loginRate()  # 无须接收此函数返回值，直接raise
@@ -163,7 +165,7 @@ class MyClient(botpy.Client):
             )
         except EzAuthExp.AuthenticationError as result:
             _log.info(f"ERR! [{GetTime()}] login Au:{msg.author.id} - {result}")
-            await msg.reply(content=f"登录错误，请检查账户/密码/邮箱验证码")
+            await msg.reply(content=f"登录错误，请检查账户、密码、邮箱验证码")
         except EzAuthExp.WaitOvertimeError as result:
             _log.info(f"ERR! [{GetTime()}] login Au:{msg.author.id} - {result}")
             await msg.reply(content="2fa等待超时，会话关闭")
@@ -192,25 +194,39 @@ class MyClient(botpy.Client):
                 err_str += f"[Login] Unkown aiohttp ERR!"
             # 打印+发送消息
             _log.info(err_str)
-            await msg.reply(content=err_str)
+            await msg.reply(content=f"出现了aiohttp请求错误！获取失败，请稍后重试")
         except Exception as result:
-            _log.info(f"ERR! [{GetTime()}] login Au:{msg.author.id}\n{traceback.format_exc()}")
-            text=f"出现了错误！\n{traceback.format_exc()}"
-            await msg.reply(content=text)
+            text=f"ERR! [{GetTime()}] login Au:{msg.author.id}\n{traceback.format_exc()}"
+            _log.info(text)
+            await msg.reply(content=f"出现了未知错误！login\n{result}")
     
 
     # 邮箱验证
     async def tfa_cmd(self,msg:Message,key:str,vcode:str):
-        return
+        _log.info(f"[tfa] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id}")
+        try:
+            global User2faCode
+            key = int(key)
+            if key in User2faCode:
+                User2faCode[key]['vode'] = vcode
+                User2faCode[key]['2fa_status']=True
+                await msg.reply(content=f"邮箱验证码「{vcode}」获取成功，请等待...")
+            else:
+                await msg.reply(content=f"第二个参数key值错误，请确认您的输入，或重新login")
+        except Exception as result:
+            text=f"ERR! [{GetTime()}] tfa Au:{msg.author.id}\n{traceback.format_exc()}"
+            _log.info(text)
+            await msg.reply(content=f"出现错误！tfa\n{result}")
     
     # 帮助命令
     async def help_cmd(self, msg: Message):
         text = help_text(self.robot.id)
         await msg.reply(content=text)
-        _log.info(f"[help] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id}")
+        _log.info(f"[help] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
 
     # 获取商店
     async def shop_cmd(self,msg:Message):
+        _log.info(f"[shop] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
         if msg.author.id not in UserAuthDict:
             await msg.reply(content=f"您尚未登录，请私聊使用「/login 账户 密码」登录")
             return
@@ -257,7 +273,7 @@ class MyClient(botpy.Client):
             # 7.发送图片
             shop_using_time = format(time.perf_counter() - start_time, '.2f') # 结束总计时
             await msg.reply(
-                content=f"玩家「{player_gamename}」的商店\n本次查询耗时：{shop_using_time}",
+                content=f"玩家「{player_gamename}」的商店\n本次查询耗时：{shop_using_time}s",
                 file_image=img_bytes
             )
             _log.info(
@@ -295,7 +311,6 @@ class MyClient(botpy.Client):
             second = content.rfind(' ')#第二个空格
             await self.login_cmd(message,account=content[first+1:second],passwd=content[second+1:])
         elif '/tfa' in content:
-            await self.pm_msg(message,f"「{self.robot.name}」收到你的私信了！当前接口尚未完工！")
             # /tfa key vcode
             first = content.find(' ') #第一个空格
             second = content.rfind(' ')#第二个空格
@@ -303,7 +318,7 @@ class MyClient(botpy.Client):
         elif '/kill' in content:
             save_all_file() # 保存所有文件
             await self.pm_msg(message,f"「{self.robot.name}」准备退出")
-            _log.info(f"[BOT.KILL] bot off at {GetTime()}")
+            _log.info(f"[BOT.KILL] bot off at {GetTime()}\n")
             os._exit(0)
         else:
             return
@@ -319,8 +334,7 @@ if __name__ == "__main__":
     # 通过kwargs，设置需要监听的事件通道
     _log.info(f"[BOT.START] start at {GetTime()}")
     # 实现一个保存所有文件的task（死循环
-    save_th = threading.Thread(target=save_file_task)
-    save_th.start()
+    threading.Thread(target=save_file_task).start()
     _log.info(f"[BOT.START] save_all_file task start {GetTime()}")
     # 运行bot
     intents = botpy.Intents(public_guild_messages=True,direct_message=True)
