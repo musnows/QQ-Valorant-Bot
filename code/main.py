@@ -323,11 +323,17 @@ class MyClient(botpy.Client):
             first = content.find(' ') #第一个空格
             second = content.rfind(' ')#第二个空格
             await self.tfa_cmd(message,key=content[first+1:second],vcode=content[second+1:])
+        elif '/shop' in content or '/store' in content:
+            await self.shop_cmd(message)
+        elif '/uinfo' in content:
+            await self.uinfo_cmd(message)
         elif '/kill' in content:
-            save_all_file() # 保存所有文件
-            await self.pm_msg(message,f"「{self.robot.name}」准备退出")
-            _log.info(f"[BOT.KILL] bot off at {GetTime()}\n")
-            os._exit(0)
+            # 只有作者能操作此命令
+            if message.author.id == bot_config['master_id']:
+                save_all_file() # 保存所有文件
+                await self.pm_msg(message,f"「{self.robot.name}」准备退出")
+                _log.info(f"[BOT.KILL] bot off at {GetTime()}\n")
+                os._exit(0)
         else:
             return
 
