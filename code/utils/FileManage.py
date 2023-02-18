@@ -23,13 +23,10 @@ def write_file(path: str, value):
 
 
 # 保存所有文件
-async def Save_All_File(is_Aio=True):
+def save_all_file():
     for i in FileList:
         try:
-            if is_Aio:
-                await i.save_aio()
-            else:
-                i.save()
+            i.save()
         except:
             print(f"ERR! [{GetTime()}] [Save.All.File] {i.path}\n{traceback.format_exc()}")
 
@@ -134,5 +131,6 @@ ValItersList = FileManage("./log/ValIters.json")  # valorant皮肤等级
 UserAuthID = FileManage("./log/UserAuthID.json")  # 用户游戏id/uuid，账户密码重登记录
 UserTokenDict = UserAuthID['data']  # riot用户游戏id和uuid
 UserApLog = UserAuthID['ap_log']    # 账户密码重登记录
+UserAuthDict = {} #存放用户的登录class，不需要保存到本地
 
 print(f"[FileManage] load all files") # 走到这里代表所有文件都打开了
