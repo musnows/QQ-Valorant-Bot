@@ -37,7 +37,7 @@ class MyClient(botpy.Client):
         await self.api.post_message(channel_id, markdown=markdown)
 
     # 私聊消息提醒
-    async def msg_inform(self,msg:Message,text:str):
+    async def pm_msg(self,msg:Message,text:str):
         await self.api.post_dms(
             guild_id=msg.guild_id,
             content=text,
@@ -182,11 +182,12 @@ class MyClient(botpy.Client):
         if '/ahri' in content or '/help' in content:
             await self.help_cmd(message)
         elif '/login' in content or '/tfa' in content:
-            await message.reply(content=f"为了您的隐私，「/login」和「/tfa」命令仅私聊可用！")
-        elif '/shop' in content:
+            await message.reply(content=f"为了您的隐私，「/login」和「/tfa」命令仅私聊可用！\nPC端无bot私聊入口，请先在手机端上私聊bot，便可在PC端私聊")
+        elif '/shop' in content or '/store' in content:
             await self.shop_cmd(message)
         elif '/uinfo' in content:
-            await self.uinfo_cmd(message)
+            await message.reply(content=f"抱歉，本命令尚未完工！")
+            #await self.uinfo_cmd(message)
         else:
             return
 
@@ -199,14 +200,14 @@ class MyClient(botpy.Client):
             second = content.rfind(' ')#第二个空格
             await self.login_cmd(message,account=content[first+1:second],passwd=content[second+1:])
         elif '/tfa' in content:
-            await self.msg_inform(message,f"「{self.robot.name}」收到你的私信了！当前接口尚未完工！")
+            await self.pm_msg(message,f"「{self.robot.name}」收到你的私信了！当前接口尚未完工！")
             # /tfa key vcode
             first = content.find(' ') #第一个空格
             second = content.rfind(' ')#第二个空格
             await self.tfa_cmd(message,key=content[first+1:second],vcode=content[second+1:])
         elif '/kill' in content:
             save_all_file() # 保存所有文件
-            await self.msg_inform(message,f"「{self.robot.name}」准备退出")
+            await self.pm_msg(message,f"「{self.robot.name}」准备退出")
             _log.info(f"[BOT.KILL] bot off at {GetTime()}")
             os._exit(0)
         else:
