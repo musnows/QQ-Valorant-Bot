@@ -1,16 +1,13 @@
 # -*- coding: utf-8 -*-
-import io
-import os
-import requests
+import time
 
 import botpy
 from botpy import logging
 
 from botpy.message import Message,DirectMessage
 from botpy.types.message import MarkdownPayload, MessageMarkdownParams
-from utils.ShopApi import bot_config,shop_url_post,tfa_code_post
+from utils.valorant.ShopApi import bot_config,shop_url_post,tfa_code_post,shop_img_load
 from utils.Gtime import GetTime
-from PIL import Image
 
 
 _log = logging.get_logger()
@@ -33,42 +30,78 @@ class MyClient(botpy.Client):
         # 通过api发送回复消息
         await self.api.post_message(channel_id, markdown=markdown)
 
-    async def img_test(message:Message):
-        img = io.BytesIO(requests.get('https://img.kookapp.cn/assets/2022-09/lSj90Xr9yA0zk0k0.png').content)
-        bg = Image.open(img)  # 16-9 商店默认背景
-        imgByteArr = io.BytesIO(bg.tobytes())
-        #img_bytes = bg.tobytes()
-        img_bytes = img.read()
-        # 只有下面这个办法可行
-        # with open("./test.png", "rb") as img:
-        #     img_bytes = img.read()
-        print(type(img_bytes))
-        print(type(img.read()))
-        # await message.reply(content=f"机器人{self.robot.name}收到你的@消息了: {message.content}", file_image=img_bytes)
-
-    async def on_at_message_create(self, message: Message):
-        text = help_text()
-        await message.reply(content=text)
-        #await self.handle_send_markdown_by_content(message.channel_id, message.id)
-
-
-    async def on_direct_message_create(self, message: DirectMessage):
+    # 私聊消息提醒
+    async def msg_inform(self,msg:Message):
         await self.api.post_dms(
-            guild_id=message.guild_id,
-            content=f"机器人{self.robot.name}收到你的私信了: {message.content}",
-            msg_id=message.id,
+            guild_id=msg.guild_id,
+            content=f"「{self.robot.name}」收到你的私信了！正在处理中……",
+            msg_id=msg.id,
         )
+    
+    # 登录命令
+    async def login_cmd(self,msg:Message):
+        begin_time = time.time()
+        content = msg.content
+        # /login 账户 密码
+        first = content.find(' ') #第一个空格
+        second = content.rfind(' ')#第二个空格
+        act = content[first+1:second]
+        pwd = content[second+1:]
+        ret = await shop_url_post(account=act,passwd=pwd)
+        if ret['code']==0:
+            img_bytes = await shop_img_load(img_src=ret['message'],key=act)
+            # 发送图片
+            await self.api.post_dms(
+                guild_id=msg.guild_id,
+                content=f"成功获取您的商店！",
+                msg_id=msg.id,
+                file_image=img_bytes
+            )
+            print(time.time()-begin_time)
+    
+    # 邮箱验证
+    async def tfa_cmd(self,msg:Message):
+        return
+    
+    # 帮助命令
+    async def help_cmd(self, msg: Message):
+        text = help_text()
+        await msg.reply(content=text)
+        _log.info(f"[help] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id}")
+
+    # 获取商店
+    async def shop_cmd(self,msg:Message):
+        return
+
+    # 获取uinfo
+    async def uinfo_cmd(self,msg:Message):
+        return
+
+    # 监听公频消息
+    async def on_at_message_create(self, message: Message):
+        #await self.handle_send_markdown_by_content(message.channel_id, message.id)
+        content = message.content
+        if '/ahri' in content:
+            await self.help_cmd(message)
+        elif '/login' in content or '/tfa' in content:
+            await message.reply(content=f"为了您的隐私，「/login」和「/tfa」命令仅私聊可用！")
+        elif '/shop' in content:
+            await self.shop_cmd(message)
+        elif '/uinfo' in content:
+            await self.uinfo_cmd(message)
+        else:
+            return
+
+    # 监听私聊消息
+    async def on_direct_message_create(self, message: DirectMessage):
         if '/login' in message.content:
-            content = message.content
-            print(message.content)
-            # /login 账户 密码
-            first = content.find(' ') #第一个空格
-            second = content.rfind(' ')#第二个空格
-            act = content[first+1:second]
-            pwd = content[second+1:]
-            print(f"[{act}][{pwd}]")
-            ret = await shop_url_post(account=act,passwd=pwd)
-            print(ret)
+            await self.msg_inform(message)
+            await self.login_cmd(message)
+        elif '/tfa' in message.content:
+            await self.msg_inform(message)
+            await self.tfa_cmd(message)
+        else:
+            return
 
 
 if __name__ == "__main__":
