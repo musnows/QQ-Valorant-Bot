@@ -3,3 +3,5 @@
 __pycache__/
 config/
 log/
+# ln -s main.py
+qqbot.py

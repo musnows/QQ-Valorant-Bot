@@ -13,7 +13,7 @@ from botpy.message import Message,DirectMessage
 from botpy.types.message import MarkdownPayload
 from utils.FileManage import bot_config,UserTokenDict,UserAuthDict,UserApLog,save_all_file
 from utils.valorant.ShopApi import *
-from utils.valorant.Val import fetch_daily_shop,fetch_vp_rp_dict
+from utils.valorant.Val import fetch_daily_shop,fetch_vp_rp_dict,fetch_valorant_point
 from utils.valorant.EzAuth import EzAuthExp,Get2faWait_Key,auth2faWait,auth2fa,authflow,User2faCode
 from utils.Gtime import GetTime
 
@@ -73,7 +73,7 @@ async def check_reauth(def_name: str = "", msg: Union[Message, str] = ''):
             'access_token': auth.access_token,
             'entitlements_token': auth.entitlements_token
         }
-        resp = await fetch_vp_rp_dict(userdict)
+        resp = await fetch_valorant_point(userdict)
         # resp={'httpStatus': 400, 'errorCode': 'BAD_CLAIMS', 'message': 'Failure validating/decoding RSO Access Token'}
         # 如果没有这个键，会直接报错进except; 如果有这个键，就可以继续执行下面的内容
         key_test = resp['httpStatus']
