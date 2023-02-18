@@ -279,8 +279,16 @@ class MyClient(botpy.Client):
             _log.info(
                 f"[{GetTime()}] Au:{msg.author.id} daily_shop reply success [{shop_using_time}]"
             )
-        except:
-            _log.info(f"[{GetTime()}] shop Au:{msg.author.id}\n{traceback.format_exc()}")
+        except Exception as result:
+            err_str = f"[{GetTime()}] shop Au:{msg.author.id}\n{traceback.format_exc()}"
+            if "SkinsPanelLayout" in str(result):
+                _log.info(err_str, resp)
+                btext = f"KeyError:{result}, please re-login\n如果此问题重复出现，请联系开发者"
+                await msg.reply(content=f"出现键值错误\n{btext}")
+            else:
+                _log.info(err_str)
+                await msg.reply(content=f"出现未知错误错误！shop\n{result}")
+            
 
     # 获取uinfo
     async def uinfo_cmd(self,msg:Message):
