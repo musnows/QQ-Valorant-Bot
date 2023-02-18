@@ -208,7 +208,7 @@ class MyClient(botpy.Client):
             global User2faCode
             key = int(key)
             if key in User2faCode:
-                User2faCode[key]['vode'] = vcode
+                User2faCode[key]['vcode'] = vcode
                 User2faCode[key]['2fa_status']=True
                 await msg.reply(content=f"邮箱验证码「{vcode}」获取成功，请等待...")
             else:
