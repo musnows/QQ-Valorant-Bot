@@ -219,7 +219,7 @@ class MyClient(botpy.Client):
                 User2faCode[key]['2fa_status']=True
                 await msg.reply(content=f"邮箱验证码「{vcode}」获取成功，请等待...")
             else:
-                await msg.reply(content=f"第二个参数key值错误，请确认您的输入，或重新login")
+                await msg.reply(content=f"您尚未登录，请先执行「/login 账户 密码」")
         except Exception as result:
             text=f"ERR! [{GetTime()}] tfa Au:{msg.author.id}\n{traceback.format_exc()}"
             _log.info(text)
