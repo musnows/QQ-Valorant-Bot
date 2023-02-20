@@ -6,7 +6,6 @@ import os
 
 import botpy
 from botpy import logging
-from typing import Union
 from aiohttp import client_exceptions
 
 from botpy.message import Message,DirectMessage
@@ -57,37 +56,43 @@ async def login_reauth(user_id: str):
 
 
 # 判断是否需要重新获取token
-async def check_reauth(def_name: str = "", msg: Union[Message, str] = ''):
+async def check_reauth(def_name: str = "", msg = None):
     """
     return value:
      - True: no need to reauthorize / get `user_id` as params & reauhorize success 
      - False: unkown err / reauthorize failed
     """
-    user_id = "[ERR!]"  #先给userid赋值，避免下方打印的时候报错（不出意外是会被下面的语句修改的）
+    user_id = "[ERR!]"  # 先给userid赋值，避免下方打印的时候报错（不出意外是会被下面的语句修改的）
+    # 判断传入的类型是不是消息 (公屏，私聊)
+    is_msg = isinstance(msg, Message) or isinstance(msg,DirectMessage) 
     try:
-        is_msg = isinstance(msg, Message)  #判断传入的类型是不是消息
-        user_id = msg.author.id if is_msg else msg # 如果是str就直接用
+        # 如果是str就直接用,是msg对象就用id
+        user_id = msg.author.id  if is_msg else msg
+        print("check reauth: ",user_id)
+        # 找键值，获取auth对象
         auth = UserAuthDict[user_id]['auth']
         userdict = {
             'auth_user_id': auth.user_id,
             'access_token': auth.access_token,
             'entitlements_token': auth.entitlements_token
         }
+        # 调用riot api测试cookie是否过期
         resp = await fetch_valorant_point(userdict)
-        # resp={'httpStatus': 400, 'errorCode': 'BAD_CLAIMS', 'message': 'Failure validating/decoding RSO Access Token'}
-        # 如果没有这个键，会直接报错进except; 如果有这个键，就可以继续执行下面的内容
+        # {'httpStatus': 400, 'errorCode': 'BAD_CLAIMS', 'message': 'Failure validating/decoding RSO Access Token'}
+        # 如果没有这个键，会直接报错进except（代表没有错误）
+        # 如果有这个键，就可以继续执行下面的内容（代表cookie过期了）
         key_test = resp['httpStatus']
         # 如果传入的是msg，则提示用户
         if is_msg:  
             text = f"获取「{def_name}」失败！正在尝试重新获取token，您无需操作"
             await msg.reply(content=f"{text}\n{resp['message']}")
-        # 不管传入的是用户id还是msg，都传userid进入该函数
+        # 不管传入的是用户id还是msg，都传user_id进入该函数
         ret = await login_reauth(user_id)
         if ret == False and is_msg:  #没有正常返回,重新获取token失败
             text = f"重新获取token失败，请私聊「/login」重新登录\n"
             await msg.reply(content=f"{text}\nAuto Reauthorize Failed!")
-
-        return ret  #返回真/假
+        # 返回真/假
+        return ret 
     except client_exceptions.ClientResponseError as result:
         err_str = f"[Check_re_auth] aiohttp ERR!\n```\n{traceback.format_exc()}\n```\n"
         if 'auth.riotgames.com' and '403' in str(result):
@@ -99,6 +104,7 @@ async def check_reauth(def_name: str = "", msg: Union[Message, str] = ''):
         else:
             err_str += f"[Check_re_auth] Unkown aiohttp ERR!"
         # 登陆失败
+        if is_msg: msg.reply(f"出现错误！check_reauth:\naiohttp client_exceptions ClientResponseError")
         _log.info(err_str)
         return False
     except Exception as result:
@@ -106,6 +112,7 @@ async def check_reauth(def_name: str = "", msg: Union[Message, str] = ''):
             _log.info(f"[Check_re_auth] Au:{user_id} No need to reauthorize [{result}]")
             return True
         else:
+            if is_msg: msg.reply(f"出现错误！check_reauth:\n{result}")
             _log.info(f"[Check_re_auth] Unkown ERR!\n{traceback.format_exc()}")
             return False
 
