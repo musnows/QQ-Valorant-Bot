@@ -274,15 +274,18 @@ class MyClient(botpy.Client):
             # 返回成功
             log_time += f"- [Drawing] {format(time.time() - draw_time,'.4f')} - [Au] {msg.author.id}"
             _log.info(log_time)
-            # 6.一切正常，获取图片bytes
+            # 6.一切正常，获取图片bytes 
+            # https://bot.q.qq.com/wiki/develop/gosdk/api/message/message_format.html#message
+            # 发现可以直接传图片url，但是sdk的exp里面没有，看来还是得自己看文档
             _log.info(f"[imgUrl] {ret['message']}")
-            img_bytes= await shop_img_load(ret['message'],key=msg.author.id)
+            # img_bytes= await shop_img_load(ret['message'],key=msg.author.id)
             # 7.发送图片
             shop_using_time = format(time.perf_counter() - start_time, '.2f') # 结束总计时
             await msg.reply(
                 content=f"玩家「{player_gamename}」的商店\n本次查询耗时：{shop_using_time}s",
-                file_image=img_bytes
+                image=ret['message']
             )
+            # 8.结束，打印
             _log.info(
                 f"[{GetTime()}] Au:{msg.author.id} daily_shop reply success [{shop_using_time}]"
             )
