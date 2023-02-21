@@ -32,16 +32,16 @@ def help_text(bot_id:str):
 # cookie重新登录
 async def login_reauth(user_id: str):
     base_print = f"[{GetTime()}] Au:{user_id} = "
-    print(base_print + "auth_token failure,trying reauthorize()")
+    _log.info(base_print + "auth_token failure,trying reauthorize()")
     global UserAuthDict,UserTokenDict
     auth = UserAuthDict[user_id]['auth']
     #用cookie重新登录,会返回一个bool是否成功
     ret = await auth.reauthorize()
     if ret:  #会返回一个bool是否成功,成功了重新赋值
         UserAuthDict[user_id]['auth'] = auth
-        print(base_print + "reauthorize() Successful!")
+        _log.info(base_print + "reauthorize() Successful!")
     else:  # cookie重新登录失败
-        print(base_print + "reauthorize() Failed! T-T")  # 失败打印
+        _log.info(base_print + "reauthorize() Failed! T-T")  # 失败打印
         # 有保存账户密码+不是邮箱验证用户
         if user_id in UserAuthDict['AP'] and (not UserAuthDict[user_id]['2fa']):
             res_auth = await authflow(UserAuthDict['AP'][user_id]['a'], UserAuthDict['AP'][user_id]['p'])
@@ -49,7 +49,7 @@ async def login_reauth(user_id: str):
             res_auth._cookie_jar.save(f"./log/cookie/{user_id}.cke")  #保存cookie
             # 记录使用账户密码重新登录的时间
             UserApLog[user_id][GetTime()] = UserTokenDict[user_id]['GameName']
-            print(base_print + "authflow() by AP")
+            _log.info(base_print + "authflow() by AP")
             ret = True
     # 正好返回auth.reauthorize()的bool
     return ret  
@@ -68,7 +68,7 @@ async def check_reauth(def_name: str = "", msg = None):
     try:
         # 如果是str就直接用,是msg对象就用id
         user_id = msg.author.id  if is_msg else msg
-        print("check reauth: ",user_id)
+        _log.info("check reauth: ",user_id)
         # 找键值，获取auth对象
         auth = UserAuthDict[user_id]['auth']
         userdict = {
