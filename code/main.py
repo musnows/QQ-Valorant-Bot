@@ -13,7 +13,7 @@ from utils.valorant import Val,ShopApi
 from utils.valorant.EzAuth import EzAuthExp,auth2faWait,auth2fa,authflow,User2faCode
 from utils.Gtime import GetTime
 from utils.Channel import listenConf
-
+from utils.Proc import get_proc_info
 
 # help命令文字
 def help_text(bot_id:str):
@@ -392,13 +392,15 @@ class MyClient(botpy.Client):
             content = message.content
             if '/ahri' in content or '/help' in content:
                 await self.help_cmd(message)
-            elif '/kill' in content:
-                # 只有作者能操作此命令
-                if message.author.id == bot_config['master_id']:
-                    save_all_file() # 保存所有文件
-                    await message.reply(content=f"「{self.robot.name}」准备退出")
-                    _log.info(f"[BOT.KILL] bot off at {GetTime()}\n")
-                    os._exit(0)
+            # 只有作者能操作此命令
+            elif '/kill' in content and (message.author.id == bot_config['master_id']):
+                save_all_file() # 保存所有文件
+                await message.reply(content=f"「{self.robot.name}」准备退出")
+                _log.info(f"[BOT.KILL] bot off at {GetTime()}\n")
+                os._exit(0)
+            elif '/mem' in content and (message.author.id == bot_config['master_id']):
+                text = await get_proc_info()
+                await message.reply(content=text)
             # 判断是否出现了速率超速或403错误
             elif Val.loginStat.Bool():
                 if '/login' in content:
