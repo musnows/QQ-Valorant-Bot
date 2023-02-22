@@ -12,7 +12,7 @@ from botpy.message import Message,DirectMessage
 from botpy.types.message import MarkdownPayload
 from utils.FileManage import bot_config,UserTokenDict,UserAuthDict,UserApLog,save_all_file
 from utils.valorant.ShopApi import *
-from utils.valorant.Val import fetch_daily_shop,fetch_vp_rp_dict,fetch_valorant_point
+from utils.valorant.Val import fetch_daily_shop,fetch_vp_rp_dict,fetch_valorant_point,fetch_player_loadout,fetch_playercard_uuid,fetch_title_uuid,fetch_player_level
 from utils.valorant.EzAuth import EzAuthExp,Get2faWait_Key,auth2faWait,auth2fa,authflow,User2faCode
 from utils.Gtime import GetTime
 from utils.Channel import listenConf
@@ -70,7 +70,7 @@ async def check_reauth(def_name: str = "", msg = None):
     try:
         # 如果是str就直接用,是msg对象就用id
         user_id = msg.author.id  if is_msg else msg
-        _log.info("check reauth: ",user_id)
+        _log.info(f"[Check reauth] Au:{user_id}")
         # 找键值，获取auth对象
         auth = UserAuthDict[user_id]['auth']
         userdict = {
@@ -96,15 +96,15 @@ async def check_reauth(def_name: str = "", msg = None):
         # 返回真/假
         return ret 
     except client_exceptions.ClientResponseError as result:
-        err_str = f"[Check_re_auth] aiohttp ERR!\n```\n{traceback.format_exc()}\n```\n"
+        err_str = f"[Check reauth] aiohttp ERR!\n{traceback.format_exc()}"
         if 'auth.riotgames.com' and '403' in str(result):
             global Login_Forbidden
             Login_Forbidden = True
-            err_str += f"[Check_re_auth] 403 err! set Login_Forbidden = True"
+            err_str += f"[Check reauth] 403 err! set Login_Forbidden = True"
         elif '404' in str(result):
-            err_str += f"[Check_re_auth] 404 err! network err, try again"
+            err_str += f"[Check reauth] 404 err! network err, try again"
         else:
-            err_str += f"[Check_re_auth] Unkown aiohttp ERR!"
+            err_str += f"[Check reauth] Unkown aiohttp ERR!"
         # 登陆失败
         if is_msg: msg.reply(f"出现错误！check_reauth:\naiohttp client_exceptions ClientResponseError")
         _log.info(err_str)
@@ -181,7 +181,7 @@ class MyClient(botpy.Client):
             # 发送信息
             await msg.reply(content=text)
         except client_exceptions.ClientResponseError as result:
-            err_str = f"ERR! [{GetTime()}] login Au:{msg.author_id}\n```\n{traceback.format_exc()}\n```\n"
+            err_str = f"ERR! [{GetTime()}] login Au:{msg.author.id}\n```\n{traceback.format_exc()}\n```\n"
             if 'auth.riotgames.com' and '403' in str(result):
                 Login_Forbidden = True
                 err_str += f"[Login] 403 err! set Login_Forbidden = True"
@@ -295,9 +295,69 @@ class MyClient(botpy.Client):
 
     # 获取uinfo
     async def uinfo_cmd(self,msg:Message):
-        text="尚未完工"
-        await msg.reply(content=text)
-        return
+        _log.info(f"[uinfo] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
+        if msg.author.id not in UserAuthDict:
+            await msg.reply(content=f"您尚未登录，请私聊使用「/login 账户 密码」登录")
+            return
+        text=" "# 先设置为空串，避免except中报错
+        try:
+            # 1.检测是否需要重新登录
+            reau = await check_reauth("uinfo", msg)  #重新登录
+            if reau == False: return  #如果为假说明重新登录失败
+            # 2.获取RiotAuth对象
+            auth = UserAuthDict[msg.author.id]['auth']
+            userdict = {
+                'auth_user_id': auth.user_id,
+                'access_token': auth.access_token,
+                'entitlements_token': auth.entitlements_token
+            }
+            # 3.调用api，获取相关信息
+            resp = await fetch_player_loadout(userdict)  # 获取玩家装备栏
+            player_card = await fetch_playercard_uuid(resp['Identity']['PlayerCardID'])  # 玩家卡面id
+            player_title = await fetch_title_uuid(resp['Identity']['PlayerTitleID'])  # 玩家称号id
+            # 3.1 检测返回值
+            if 'data' not in player_card or player_card['status'] != 200:
+                player_card = {'data': {'wideArt': 'https://img.kookapp.cn/assets/2022-09/PDlf7DcoUH0ck03k.png'}}
+                _log.info(f"ERR![player_card]  Au:{msg.author.id} uuid:{resp['Identity']['PlayerCardID']}")
+            if 'data' not in player_title or player_title['status'] != 200:
+                player_title = {
+                    'data': {
+                        "displayName": f"未知玩家卡面uuid！\nUnknow uuid: `{resp['Identity']['PlayerTitleID']}`"
+                    }
+                }
+                _log.info(f"ERR![player_title] Au:{msg.author.id} uuid:{resp['Identity']['PlayerTitleID']}")
+            # 可能遇到全新账户（没打过游戏）的情况
+            if resp['Guns'] == None or resp['Sprays'] == None:  
+                await msg.reply(content=f"拳头api返回值错误，您是否登录了一个全新的账户？")
+                return
+
+            # 3.2 获取玩家等级
+            resp = await fetch_player_level(userdict)
+            player_level = resp["Progress"]["Level"]     # 玩家等级
+            player_level_xp = resp["Progress"]["XP"]     # 玩家等级经验值
+            last_fwin = resp["LastTimeGrantedFirstWin"]  # 上次首胜时间
+            next_fwin = resp["NextTimeFirstWinAvailable"]# 下次首胜重置
+            # 3.3 获取玩家的vp和r点剩余
+            resp = await fetch_vp_rp_dict(userdict)
+
+            # 4.创建消息str
+            text =f"玩家 {UserTokenDict[msg.author.id]['GameName']}#{UserTokenDict[msg.author.id]['TagLine']} 的个人信息\n"
+            text+= f"玩家称号：" + player_title['data']['displayName'] + "\n"
+            text+= f"玩家等级：{player_level}  -  经验值：{player_level_xp}\n"
+            text+= f"上次首胜：{last_fwin}\n"
+            text+= f"首胜重置：{next_fwin}\n"
+            text+= f"RP：{resp['rp']}  |  VP：{resp['vp']}"
+            # 5.发送消息
+            await msg.reply(content=text,image=player_card['data']['wideArt'])
+            _log.info(f"[{GetTime()}] Au:{msg.author.id} uinfo reply successful!")
+        except Exception as result:
+            _log.info(f"ERR! [{GetTime()}] uinfo\n{traceback.format_exc()}")
+            if "Identity" in str(result) or "Balances" in str(result):
+                await msg.reply(content=f"[uinfo] 键值错误，请重新登录\n{result}")
+            elif "download file err" in str(result):
+                await msg.reply(content=f"{text}\n获取玩家卡面图片错误")
+            else:
+                await msg.reply(content=f"[uinfo] 未知错误\n{result}")
 
     # 监听公频消息
     async def on_at_message_create(self, message: Message):
