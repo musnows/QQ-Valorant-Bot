@@ -121,18 +121,6 @@ class MyClient(botpy.Client):
     async def on_ready(self):
         _log.info(f"robot 「{self.robot.name}」 on_ready!")
 
-    async def handle_send_markdown_by_content(self, channel_id, msg_id):
-        markdown = MarkdownPayload(content="# 标题 \n## 简介很开心 \n内容，测试")
-        # 通过api发送回复消息
-        await self.api.post_message(channel_id, markdown=markdown)
-
-    # 私聊消息提醒
-    async def pm_msg(self,msg:Message,text:str):
-        await self.api.post_dms(
-            guild_id=msg.guild_id,
-            content=text,
-            msg_id=msg.id,
-        )
     
     # 登录命令
     async def login_cmd(self,msg:Message,account:str,passwd:str):
@@ -311,7 +299,6 @@ class MyClient(botpy.Client):
 
     # 监听公频消息
     async def on_at_message_create(self, message: Message):
-        #await self.handle_send_markdown_by_content(message.channel_id, message.id)
         content = message.content
         if '/ahri' in content or '/help' in content:
             await self.help_cmd(message)
@@ -321,6 +308,11 @@ class MyClient(botpy.Client):
             await self.shop_cmd(message)
         elif '/uinfo' in content:
             await self.uinfo_cmd(message)
+        elif '/pm' in content:
+            text = f"收到pm命令，「{self.robot.name}」给您发起了私信"
+            await message.reply(content=text)
+            ret_dms = await self.api.create_dms(message.guild_id,message.author.id)
+            await self.api.post_dms(guild_id=ret_dms['guild_id'],content=text)
         else:
             return
 
@@ -346,7 +338,7 @@ class MyClient(botpy.Client):
             # 只有作者能操作此命令
             if message.author.id == bot_config['master_id']:
                 save_all_file() # 保存所有文件
-                await self.pm_msg(message,f"「{self.robot.name}」准备退出")
+                await message.reply(content=f"「{self.robot.name}」准备退出")
                 _log.info(f"[BOT.KILL] bot off at {GetTime()}\n")
                 os._exit(0)
         else:
