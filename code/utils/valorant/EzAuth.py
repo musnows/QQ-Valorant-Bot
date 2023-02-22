@@ -14,6 +14,7 @@ from re import compile
 
 from riot_auth import RiotAuth
 from utils.valorant import EzAuthExp
+from utils.FileManage import _log
 
 RiotClient = "RiotClient/62.0.1.4852117.4789131"
 User2faCode = {}
@@ -89,7 +90,7 @@ class EzAuth:
             raise EzAuthExp.RatelimitError(User2faCode[key]['err'])
 
         else:  # 到此处是需要邮箱验证的用户
-            print(f"[EzAuth] k:{key} 2fa user")
+            _log.info(f"[EzAuth] k:{key} 2fa user")
             self.is2fa = True # 是2fa用户
             User2faCode[key] = {
                 'vcode': '',
@@ -161,7 +162,7 @@ class EzAuth:
             'err': None,
             '2fa_status':True
         }
-        print(f"[EzAuth] k:{key} auth success")
+        _log.info(f"[EzAuth] k:{key} auth success")
 
     def get_entitlement_token(self):
         r = self.session.post(URLS.ENTITLEMENT_URL, json={})
@@ -253,7 +254,7 @@ class EzAuth:
         if ret:
             return rauth
         else:  #失败返回None
-            raise Exception('EzAuth change to RiotAuth failed')
+            raise EzAuthExp.EzAuthError('EzAuth change to RiotAuth failed')
 
 
 ###################################### Riot Auth ######################################################
@@ -265,7 +266,6 @@ async def authflow(user: str, passwd: str):
     CREDS = user, passwd
     auth = RiotAuth()
     await auth.authorize(*CREDS)
-    # await auth.reauthorize()
     # print(f"Access Token Type: {auth.token_type}\n",f"Access Token: {auth.access_token}\n")
     # print(f"Entitlements Token: {auth.entitlements_token}\n",f"User ID: {auth.user_id}")
     return auth
@@ -283,7 +283,7 @@ async def auth2faWait(key, msg=None):
         if key in User2faCode:
             # 如果2fa_status为假，代表是2fa且账户密码没有问题，需要用户提供vcode
             if not User2faCode[key]['2fa_status']:
-                print(f"[auth2faWait] k:{key} 2fa Wait")
+                _log.info(f"[auth2faWait] k:{key} 2fa Wait")
                 if msg != None:
                     await msg.reply(content=f"您开启了邮箱双重验证，请使用「/tfa 邮箱码」的方式验证\n栗子：若邮箱验证码为114514，那么您应该键入 「/tfa 114514」")
 
@@ -308,10 +308,10 @@ async def auth2faWait(key, msg=None):
             if User2faCode[key]['status']:
                 ret = copy.deepcopy(User2faCode[key])
                 del User2faCode[key]
-                print(f"[auth2faWait] k:{key} Wait success,del key")
+                _log.info(f"[auth2faWait] k:{key} Wait success,del key")
                 return ret
             else: # 走到这里没有被raise，出现了未知错误
-                print(f"[auth2faWait] k:{key} Wait failed, unkown err") 
+                _log.info(f"[auth2faWait] k:{key} Wait failed, unkown err") 
                 raise EzAuthExp.UnkownError("auth2faWait Failed")
         # key值不在，睡一会后再看看
         await asyncio.sleep(0.2)

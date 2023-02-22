@@ -5,19 +5,16 @@ import traceback
 import os
 
 import botpy
-from botpy import logging
 from aiohttp import client_exceptions
 
 from botpy.message import Message,DirectMessage
-from utils.FileManage import bot_config,UserTokenDict,UserAuthDict,UserApLog,save_all_file
+from utils.FileManage import bot_config,UserTokenDict,UserAuthDict,UserApLog,save_all_file,_log
 from utils.valorant.ShopApi import *
 from utils.valorant.Val import fetch_daily_shop,fetch_vp_rp_dict,fetch_valorant_point,fetch_player_loadout,fetch_playercard_uuid,fetch_title_uuid,fetch_player_level,loginStat
-from utils.valorant.EzAuth import EzAuthExp,Get2faWait_Key,auth2faWait,auth2fa,authflow,User2faCode
+from utils.valorant.EzAuth import EzAuthExp,auth2faWait,auth2fa,authflow,User2faCode
 from utils.Gtime import GetTime
 from utils.Channel import listenConf
 
-# 日志
-_log = logging.get_logger()
 
 # help命令文字
 def help_text(bot_id:str):

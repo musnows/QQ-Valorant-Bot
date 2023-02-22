@@ -2,8 +2,12 @@ import json
 import aiofiles
 import traceback
 from utils.Gtime import GetTime
+from botpy import logging
 
+# 文件列表
 FileList = []
+# 日志
+_log = logging.get_logger()
 
 
 def open_file(path):
@@ -28,10 +32,9 @@ def save_all_file():
         try:
             i.save()
         except:
-            print(f"ERR! [{GetTime()}] [Save.All.File] {i.path}\n{traceback.format_exc()}")
-
-    print(f"[Save.All.File] save finished at [{GetTime()}]")
-
+            _log.info(f"ERR! [{GetTime()}] [Save.All.File] {i.path}\n{traceback.format_exc()}")
+    # 保存完毕打印
+    _log.info(f"[{GetTime()}] save all file")
 
 # 文件管理类
 class FileManage:
