@@ -23,6 +23,14 @@ async def check_global_loginRate():
             raise EzAuthExp.RatelimitError
     return True
 
+# 拳头api调用被禁止的时候用这个变量取消所有相关命令
+async def lf_send(msg):
+    print(f"[Login_Forbidden] Au:{msg.author.id} Command Failed")
+    await msg.reply(
+        content=f"拳头api登录接口出现了一些错误，开发者已禁止所有相关功能的使用",
+        image="https://img.kookapp.cn/assets/2022-09/oj33pNtVpi1ee0eh.png"
+    )
+
 # 图片获取器
 async def img_requestor(img_url):
     async with aiohttp.ClientSession() as session:

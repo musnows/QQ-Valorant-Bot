@@ -121,7 +121,9 @@ class FileManage:
 
 ###################################################################################################
 
-bot_config = FileManage("./config/config.json", True)  # 机器人配置文件
+config = FileManage("./config/config.json", True)  # 机器人配置文件
+bot_config = config['bot']        # 机器人token，botappid
+guild_config = config['guild']    # 机器人频道配置
 
 ValSkinList = FileManage("./log/ValSkin.json")  # valorant皮肤
 ValPriceList = FileManage("./log/ValPrice.json")  # valorant皮肤价格

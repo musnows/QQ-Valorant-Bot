@@ -15,6 +15,7 @@ from utils.valorant.ShopApi import *
 from utils.valorant.Val import fetch_daily_shop,fetch_vp_rp_dict,fetch_valorant_point
 from utils.valorant.EzAuth import EzAuthExp,Get2faWait_Key,auth2faWait,auth2fa,authflow,User2faCode
 from utils.Gtime import GetTime
+from utils.Channel import listenConf
 
 # 日志
 _log = logging.get_logger()
@@ -303,50 +304,62 @@ class MyClient(botpy.Client):
 
     # 监听公频消息
     async def on_at_message_create(self, message: Message):
-        content = message.content
-        if '/ahri' in content or '/help' in content:
-            await self.help_cmd(message)
-        elif '/login' in content or '/tfa' in content:
-            await message.reply(content=f"为了您的隐私，「/login」和「/tfa」命令仅私聊可用！\nPC端无bot私聊入口，请先在手机端上私聊bot，便可在PC端私聊")
-        elif '/shop' in content or '/store' in content:
-            await self.shop_cmd(message)
-        elif '/uinfo' in content:
-            await self.uinfo_cmd(message)
-        elif '/pm' in content:
-            text = f"收到pm命令，「{self.robot.name}」给您发起了私信"
-            await message.reply(content=text)
-            ret_dms = await self.api.create_dms(message.guild_id,message.author.id)
-            await self.api.post_dms(guild_id=ret_dms['guild_id'],content=text)
-        else:
-            return
+        try:
+            # 检测配置，设置某个服务器的特定频道才能使用bot（需要修改配置文件)
+            if not listenConf.isActivate(gid=message.guild_id,chid=message.channel_id):
+                return
+            # 检测通过，执行
+            content = message.content
+            if '/ahri' in content or '/help' in content:
+                await self.help_cmd(message)
+            elif '/login' in content or '/tfa' in content:
+                await message.reply(content=f"为了您的隐私，「/login」和「/tfa」命令仅私聊可用！\nPC端无bot私聊入口，请先在手机端上私聊bot，便可在PC端私聊")
+            elif '/shop' in content or '/store' in content:
+                await self.shop_cmd(message)
+            elif '/uinfo' in content:
+                await self.uinfo_cmd(message)
+            elif '/pm' in content:
+                text = f"收到pm命令，「{self.robot.name}」给您发起了私信"
+                await message.reply(content=text)
+                ret_dms = await self.api.create_dms(message.guild_id,message.author.id)
+                await self.api.post_dms(guild_id=ret_dms['guild_id'],content=text)
+            else:
+                return
+        except Exception as result:
+            _log.info(traceback.format_exc())
+            await message.reply(f"[on_at_message_create]\n出现了未知错误，请联系开发者！\n{result}")
 
     # 监听私聊消息
     async def on_direct_message_create(self, message: DirectMessage):
-        content = message.content
-        if '/ahri' in content or '/help' in content:
-            await self.help_cmd(message)
-        if '/login' in content:
-            # /login 账户 密码
-            first = content.find(' ') #第一个空格
-            second = content.rfind(' ')#第二个空格
-            await self.login_cmd(message,account=content[first+1:second],passwd=content[second+1:])
-        elif '/tfa' in content:
-            # /tfa vcode
-            first = content.rfind(' ') #第一个空格
-            await self.tfa_cmd(message,vcode=content[first+1:])
-        elif '/shop' in content or '/store' in content:
-            await self.shop_cmd(message)
-        elif '/uinfo' in content:
-            await self.uinfo_cmd(message)
-        elif '/kill' in content:
-            # 只有作者能操作此命令
-            if message.author.id == bot_config['master_id']:
-                save_all_file() # 保存所有文件
-                await message.reply(content=f"「{self.robot.name}」准备退出")
-                _log.info(f"[BOT.KILL] bot off at {GetTime()}\n")
-                os._exit(0)
-        else:
-            return
+        try:
+            content = message.content
+            if '/ahri' in content or '/help' in content:
+                await self.help_cmd(message)
+            if '/login' in content:
+                # /login 账户 密码
+                first = content.find(' ') #第一个空格
+                second = content.rfind(' ')#第二个空格
+                await self.login_cmd(message,account=content[first+1:second],passwd=content[second+1:])
+            elif '/tfa' in content:
+                # /tfa vcode
+                first = content.rfind(' ') #第一个空格
+                await self.tfa_cmd(message,vcode=content[first+1:])
+            elif '/shop' in content or '/store' in content:
+                await self.shop_cmd(message)
+            elif '/uinfo' in content:
+                await self.uinfo_cmd(message)
+            elif '/kill' in content:
+                # 只有作者能操作此命令
+                if message.author.id == bot_config['master_id']:
+                    save_all_file() # 保存所有文件
+                    await message.reply(content=f"「{self.robot.name}」准备退出")
+                    _log.info(f"[BOT.KILL] bot off at {GetTime()}\n")
+                    os._exit(0)
+            else:
+                return
+        except Exception as result:
+            _log.info(traceback.format_exc())
+            await message.reply(f"[on_direct_message_create]\n出现了未知错误，请联系开发者！\n{result}")
 
 
 # 保存所有文件的task
