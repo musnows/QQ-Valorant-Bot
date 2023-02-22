@@ -23,12 +23,12 @@ Login_Forbidden = False
 
 # help命令文字
 def help_text(bot_id:str):
-    text = "以下为bot的命令列表\n"
+    text = "以下为阿狸的的命令列表\n"
     text+= "「/login 账户 密码」登录拳头账户，必须私聊使用\n"
     text+= "「/tfa 验证码」提供邮箱验证码，必须私聊使用\n"
     text+=f"「<@{bot_id}> /shop」查询商店\n"
     text+=f"「<@{bot_id}> /uinfo」查询用户vp/rp/等级\n"
-    text+=f"「<@{bot_id}> /pm」发起私信会话\n"
+    text+=f"机器人帮助频道，可在机器人介绍中点击加入！"
     return text
 
 # cookie重新登录
@@ -295,10 +295,7 @@ class MyClient(botpy.Client):
 
     # 获取uinfo
     async def uinfo_cmd(self,msg:Message):
-        text ="当前玩家资产信息\n"
-        text+="vp: 1032\n"
-        text+="rp: 232\n"
-        text+="玩家等级: 3\n"
+        text="尚未完工"
         await msg.reply(content=text)
         return
 
@@ -307,6 +304,7 @@ class MyClient(botpy.Client):
         try:
             # 检测配置，设置某个服务器的特定频道才能使用bot（需要修改配置文件)
             if not listenConf.isActivate(gid=message.guild_id,chid=message.channel_id):
+                _log.info(f"[listenConf] abort cmd")
                 return
             # 检测通过，执行
             content = message.content
