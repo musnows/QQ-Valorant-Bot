@@ -302,6 +302,11 @@ class MyClient(botpy.Client):
 
     # 获取uinfo
     async def uinfo_cmd(self,msg:Message):
+        text ="当前玩家资产信息\n"
+        text+="vp: 1032\n"
+        text+="rp: 232\n"
+        text+="玩家等级: 3\n"
+        await msg.reply(content=text)
         return
 
     # 监听公频消息
@@ -315,21 +320,22 @@ class MyClient(botpy.Client):
         elif '/shop' in content or '/store' in content:
             await self.shop_cmd(message)
         elif '/uinfo' in content:
-            await message.reply(content=f"抱歉，本命令尚未完工！")
-            #await self.uinfo_cmd(message)
+            await self.uinfo_cmd(message)
         else:
             return
 
     # 监听私聊消息
     async def on_direct_message_create(self, message: DirectMessage):
         content = message.content
+        if '/ahri' in content or '/help' in content:
+            await self.help_cmd(message)
         if '/login' in content:
             # /login 账户 密码
             first = content.find(' ') #第一个空格
             second = content.rfind(' ')#第二个空格
             await self.login_cmd(message,account=content[first+1:second],passwd=content[second+1:])
         elif '/tfa' in content:
-            # /tfa key vcode
+            # /tfa vcode
             first = content.rfind(' ') #第一个空格
             await self.tfa_cmd(message,vcode=content[first+1:])
         elif '/shop' in content or '/store' in content:
