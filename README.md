@@ -44,15 +44,31 @@ sdk使用示例请查看官方git仓库中的的example
 
 ```json
 {
-    "appid": "机器人appid",
-    "token": "机器人token",
-    "val_api_url": "https://val.musnow.top/api",
-    "val_api_token": "val_api_token",
-    "master_id":"机器人开发者id"
+  "bot":{
+      "appid": "机器人appid",
+      "token": "机器人token",
+      "val_api_url": "https://val.musnow.top/api",
+      "val_api_token": "val_api_token",
+      "master_id":"机器人开发者id"
+  },
+  "guild":{}
 }
 ```
 
-其中 `val_api_token` 的获取详见 [valorant-api-docs](https://github.com/musnows/Kook-Valorant-Bot/blob/develop/docs/valorant-shop-img-api.md)
+其中 `val_api_token` 的获取详见 [valorant-api-docs](https://github.com/Valorant-Shop-CN/Kook-Valorant-Bot/blob/develop/docs/valorant-shop-img-api.md)
+
+`guild` 字段的作用，是用于设置某一个频道只允许某几个频道使用机器人。如果服务器id不在此字段内，则不会进行限制，所有子频道都能私聊机器人。若需要限制，必须修改配置文件
+
+比如，频道id `xxxxx` 的腐竹，只允许用户在子频道id `abcd` 和 `efg` 中使用机器人，则可以按如下配置。
+
+```json
+"guild":{
+  "xxxxx":[
+    "abcd",
+    "efg"
+  ]
+}
+```
 
 ### 2.2 log
 
