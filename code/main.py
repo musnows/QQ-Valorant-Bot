@@ -27,6 +27,7 @@ def help_text(bot_id:str):
     text+= "「/tfa 验证码」提供邮箱验证码，必须私聊使用\n"
     text+=f"「<@{bot_id}> /shop」查询商店\n"
     text+=f"「<@{bot_id}> /uinfo」查询用户vp/rp/等级\n"
+    text+=f"「<@{bot_id}> /pm」发起私信会话\n"
     return text
 
 # cookie重新登录
