@@ -1,35 +1,13 @@
 import json
-import time
 import io
 import aiohttp
 from PIL import Image
 from utils.FileManage import bot_config
-from utils.valorant.EzAuth import EzAuthExp
 
 # 自己的api的root url
 rootUrl = bot_config["val_api_url"]
 apiToken = bot_config["val_api_token"]
 
-# 全局的速率限制，如果触发了速率限制的err，则阻止所有用户login
-login_rate_limit = {'limit': False, 'time': time.time()}
-RATE_LIMITED_TIME = 180  # 全局登录速率超速等待秒数
-# 检查全局用户登录速率
-async def check_global_loginRate():
-    global login_rate_limit
-    if login_rate_limit['limit']:
-        if (time.time() - login_rate_limit['time']) > RATE_LIMITED_TIME:
-            login_rate_limit['limit'] = False  #超出180s解除
-        else:  #未超出240s
-            raise EzAuthExp.RatelimitError
-    return True
-
-# 拳头api调用被禁止的时候用这个变量取消所有相关命令
-async def lf_send(msg):
-    print(f"[Login_Forbidden] Au:{msg.author.id} Command Failed")
-    await msg.reply(
-        content=f"拳头api登录接口出现了一些错误，开发者已禁止所有相关功能的使用",
-        image="https://img.kookapp.cn/assets/2022-09/oj33pNtVpi1ee0eh.png"
-    )
 
 # 图片获取器
 async def img_requestor(img_url):

@@ -1,14 +1,45 @@
 # encoding: utf-8:
 import json
 import aiohttp
-from khl import Bot, Message
-from khl.card import Card, CardMessage, Element, Module, Types
+import time
 
 # 预加载文件
 from utils.FileManage import ValBundleList, ValItersList, ValPriceList, ValSkinList
+from utils.valorant.EzAuth import EzAuthExp
 SKIN_ICON_ERR = "https://img.kookapp.cn/assets/2023-02/ekwdy7PiQC0e803m.png"
 X_RIOT_CLIENTVERSION = "release-06.01-shipping-8-820493" 
 
+# 检测登录状态
+class LoginStatus:
+    def __init__(self) -> None:
+        # 全局的速率限制，如果触发了速率限制的err，则阻止所有用户login
+        self.ratelimit = {'limit': False, 'time': time.time()}
+        self.RATE_LIMITED_TIME = 180  # 全局登录速率超速等待秒数
+        self.Login_Forbidden = False  # 403错误禁止登录
+    
+    # 检查全局用户登录速率
+    def checkRate(self) -> None:
+        if self.ratelimit['limit']:
+            if (time.time() - self.ratelimit['time']) > self.RATE_LIMITED_TIME:
+                self.ratelimit['limit'] = False  # 超出限制时间，解除
+            else:  # 未超出限制时间
+                raise EzAuthExp.RatelimitError(f'checkRate in {}')
+
+    # 检查是否出现了403错误
+    def checkForbidden(self) -> bool:
+        return self.Login_Forbidden
+
+    # 出现了速率限制，设置
+    def setLoginRate(self):
+        
+
+    # 拳头api调用被禁止的时候用这个变量取消所有相关命令
+    async def lfSend(msg):
+        print(f"[Login_Forbidden] Au:{msg.author.id} Command Failed")
+        await msg.reply(
+            content=f"拳头api登录接口出现了一些错误，开发者已禁止所有相关功能的使用",
+            image="https://img.kookapp.cn/assets/2022-09/oj33pNtVpi1ee0eh.png"
+        )
 
 ###################################### local files search ######################################################
 
