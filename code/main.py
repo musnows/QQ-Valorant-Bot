@@ -9,17 +9,15 @@ from botpy import logging
 from aiohttp import client_exceptions
 
 from botpy.message import Message,DirectMessage
-from botpy.types.message import MarkdownPayload
 from utils.FileManage import bot_config,UserTokenDict,UserAuthDict,UserApLog,save_all_file
 from utils.valorant.ShopApi import *
-from utils.valorant.Val import fetch_daily_shop,fetch_vp_rp_dict,fetch_valorant_point,fetch_player_loadout,fetch_playercard_uuid,fetch_title_uuid,fetch_player_level
+from utils.valorant.Val import fetch_daily_shop,fetch_vp_rp_dict,fetch_valorant_point,fetch_player_loadout,fetch_playercard_uuid,fetch_title_uuid,fetch_player_level,loginStat
 from utils.valorant.EzAuth import EzAuthExp,Get2faWait_Key,auth2faWait,auth2fa,authflow,User2faCode
 from utils.Gtime import GetTime
 from utils.Channel import listenConf
 
 # 日志
 _log = logging.get_logger()
-Login_Forbidden = False
 
 # help命令文字
 def help_text(bot_id:str):
@@ -130,7 +128,7 @@ class MyClient(botpy.Client):
         global login_rate_limit,UserAuthDict,UserTokenDict,Login_Forbidden
         try:
             # 1.检查全局登录速率
-            await check_global_loginRate()  # 无须接收此函数返回值，直接raise
+            if not loginStat.checkRate(): return
             # 2.发送开始登录的提示消息
             await msg.reply(content=f"正在获取您的账户token和cookie")
 
@@ -169,10 +167,10 @@ class MyClient(botpy.Client):
         except EzAuthExp.RatelimitError as result:
             err_str = f"ERR! [{GetTime()}] login Au:{msg.author.id} - {result}"
             # 更新全局速率限制
-            login_rate_limit = {'limit': True, 'time': time.time()}
-            _log.info(err_str," set login_rate_limit = True")
+            loginStat.setRateLimit()
             # 这里是第一个出现速率限制err的用户,更新消息提示
-            await msg.reply(content=f"登录请求超速！请在{RATE_LIMITED_TIME}s后重试")
+            await msg.reply(content=f"登录请求超速！请在{loginStat.RATE_LIMITED_TIME}s后重试")
+            _log.info(err_str," set login_rate_limit = True")
         except KeyError as result:
             _log.info(f"ERR! [{GetTime()}] login Au:{msg.author.id} - KeyError:{result}")
             text = f"遇到未知的KeyError，请联系阿狸的主人哦~"
@@ -183,7 +181,7 @@ class MyClient(botpy.Client):
         except client_exceptions.ClientResponseError as result:
             err_str = f"ERR! [{GetTime()}] login Au:{msg.author.id}\n```\n{traceback.format_exc()}\n```\n"
             if 'auth.riotgames.com' and '403' in str(result):
-                Login_Forbidden = True
+                loginStat.setForbidden() # 设置forbidden
                 err_str += f"[Login] 403 err! set Login_Forbidden = True"
             elif '404' in str(result):
                 err_str += f"[Login] 404 err! network err, try again"
@@ -368,20 +366,25 @@ class MyClient(botpy.Client):
                 return
             # 检测通过，执行
             content = message.content
-            if '/ahri' in content or '/help' in content:
-                await self.help_cmd(message)
-            elif '/login' in content or '/tfa' in content:
-                await message.reply(content=f"为了您的隐私，「/login」和「/tfa」命令仅私聊可用！\nPC端无bot私聊入口，请先在手机端上私聊bot，便可在PC端私聊")
-            elif '/shop' in content or '/store' in content:
-                await self.shop_cmd(message)
-            elif '/uinfo' in content:
-                await self.uinfo_cmd(message)
-            elif '/pm' in content:
+            # 用于发起私信（解除3条私信限制）
+            if '/pm' in content:
                 text = f"收到pm命令，「{self.robot.name}」给您发起了私信"
                 await message.reply(content=text)
                 ret_dms = await self.api.create_dms(message.guild_id,message.author.id)
                 await self.api.post_dms(guild_id=ret_dms['guild_id'],content=text)
-            else:
+            # 判断是否出现了速率超速或403错误
+            elif loginStat.Bool(): 
+                if '/ahri' in content or '/help' in content:
+                    await self.help_cmd(message)
+                elif '/login' in content or '/tfa' in content:
+                    await message.reply(content=f"为了您的隐私，「/login」和「/tfa」命令仅私聊可用！\nPC端无bot私聊入口，请先在手机端上私聊bot，便可在PC端私聊")
+                elif '/shop' in content or '/store' in content:
+                    await self.shop_cmd(message)
+                elif '/uinfo' in content:
+                    await self.uinfo_cmd(message)
+            else: # 无法执行登录
+                await loginStat.sendForbidden(msg=Message)
+                _log.info(f"[LoginStatus] Au:{message.author.id} Command Failed")
                 return
         except Exception as result:
             _log.info(traceback.format_exc())
@@ -393,19 +396,6 @@ class MyClient(botpy.Client):
             content = message.content
             if '/ahri' in content or '/help' in content:
                 await self.help_cmd(message)
-            if '/login' in content:
-                # /login 账户 密码
-                first = content.find(' ') #第一个空格
-                second = content.rfind(' ')#第二个空格
-                await self.login_cmd(message,account=content[first+1:second],passwd=content[second+1:])
-            elif '/tfa' in content:
-                # /tfa vcode
-                first = content.rfind(' ') #第一个空格
-                await self.tfa_cmd(message,vcode=content[first+1:])
-            elif '/shop' in content or '/store' in content:
-                await self.shop_cmd(message)
-            elif '/uinfo' in content:
-                await self.uinfo_cmd(message)
             elif '/kill' in content:
                 # 只有作者能操作此命令
                 if message.author.id == bot_config['master_id']:
@@ -413,7 +403,24 @@ class MyClient(botpy.Client):
                     await message.reply(content=f"「{self.robot.name}」准备退出")
                     _log.info(f"[BOT.KILL] bot off at {GetTime()}\n")
                     os._exit(0)
-            else:
+            # 判断是否出现了速率超速或403错误
+            elif loginStat.Bool():
+                if '/login' in content:
+                    # /login 账户 密码
+                    first = content.find(' ') #第一个空格
+                    second = content.rfind(' ')#第二个空格
+                    await self.login_cmd(message,account=content[first+1:second],passwd=content[second+1:])
+                elif '/tfa' in content:
+                    # /tfa vcode
+                    first = content.rfind(' ') #第一个空格
+                    await self.tfa_cmd(message,vcode=content[first+1:])
+                elif '/shop' in content or '/store' in content:
+                    await self.shop_cmd(message)
+                elif '/uinfo' in content:
+                    await self.uinfo_cmd(message)
+            else: # 无法登录
+                await loginStat.sendForbidden(message)
+                _log.info(f"[LoginStatus] Au:{message.author.id} Command Failed")
                 return
         except Exception as result:
             _log.info(traceback.format_exc())
