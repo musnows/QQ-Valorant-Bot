@@ -9,8 +9,7 @@ from aiohttp import client_exceptions
 
 from botpy.message import Message,DirectMessage
 from utils.FileManage import bot_config,UserTokenDict,UserAuthDict,UserApLog,save_all_file,_log
-from utils.valorant.ShopApi import *
-from utils.valorant.Val import fetch_daily_shop,fetch_vp_rp_dict,fetch_valorant_point,fetch_player_loadout,fetch_playercard_uuid,fetch_title_uuid,fetch_player_level,loginStat
+from utils.valorant import Val,ShopApi
 from utils.valorant.EzAuth import EzAuthExp,auth2faWait,auth2fa,authflow,User2faCode
 from utils.Gtime import GetTime
 from utils.Channel import listenConf
@@ -74,7 +73,7 @@ async def check_reauth(def_name: str = "", msg = None):
             'entitlements_token': auth.entitlements_token
         }
         # 调用riot api测试cookie是否过期
-        resp = await fetch_valorant_point(userdict)
+        resp = await Val.fetch_valorant_point(userdict)
         # {'httpStatus': 400, 'errorCode': 'BAD_CLAIMS', 'message': 'Failure validating/decoding RSO Access Token'}
         # 如果没有这个键，会直接报错进except（代表没有错误）
         # 如果有这个键，就可以继续执行下面的内容（代表cookie过期了）
@@ -106,11 +105,11 @@ async def check_reauth(def_name: str = "", msg = None):
         return False
     except Exception as result:
         if 'httpStatus' in str(result):
-            _log.info(f"[Check_re_auth] Au:{user_id} No need to reauthorize [{result}]")
+            _log.info(f"[Check reauth] Au:{user_id} No need to reauthorize [{result}]")
             return True
         else:
             if is_msg: msg.reply(f"出现错误！check_reauth:\n{result}")
-            _log.info(f"[Check_re_auth] Unkown ERR!\n{traceback.format_exc()}")
+            _log.info(f"[Check reauth] Unkown ERR!\n{traceback.format_exc()}")
             return False
 
 # bot main
@@ -125,7 +124,7 @@ class MyClient(botpy.Client):
         global login_rate_limit,UserAuthDict,UserTokenDict,Login_Forbidden
         try:
             # 1.检查全局登录速率
-            if not loginStat.checkRate(): return
+            if not Val.loginStat.checkRate(): return
             # 2.发送开始登录的提示消息
             await msg.reply(content=f"正在获取您的账户token和cookie")
 
@@ -164,9 +163,9 @@ class MyClient(botpy.Client):
         except EzAuthExp.RatelimitError as result:
             err_str = f"ERR! [{GetTime()}] login Au:{msg.author.id} - {result}"
             # 更新全局速率限制
-            loginStat.setRateLimit()
+            Val.loginStat.setRateLimit()
             # 这里是第一个出现速率限制err的用户,更新消息提示
-            await msg.reply(content=f"登录请求超速！请在{loginStat.RATE_LIMITED_TIME}s后重试")
+            await msg.reply(content=f"登录请求超速！请在{Val.loginStat.RATE_LIMITED_TIME}s后重试")
             _log.info(err_str," set login_rate_limit = True")
         except KeyError as result:
             _log.info(f"ERR! [{GetTime()}] login Au:{msg.author.id} - KeyError:{result}")
@@ -178,7 +177,7 @@ class MyClient(botpy.Client):
         except client_exceptions.ClientResponseError as result:
             err_str = f"ERR! [{GetTime()}] login Au:{msg.author.id}\n```\n{traceback.format_exc()}\n```\n"
             if 'auth.riotgames.com' and '403' in str(result):
-                loginStat.setForbidden() # 设置forbidden
+                Val.loginStat.setForbidden() # 设置forbidden
                 err_str += f"[Login] 403 err! set Login_Forbidden = True"
             elif '404' in str(result):
                 err_str += f"[Login] 404 err! network err, try again"
@@ -244,16 +243,16 @@ class MyClient(botpy.Client):
             log_time = ""
             shop_api_time = time.time() # api调用计时
             # 3.api获取每日商店
-            resp = await fetch_daily_shop(userdict)  
+            resp = await Val.fetch_daily_shop(userdict)  
             list_shop = resp["SkinsPanelLayout"]["SingleItemOffers"]  # 商店刷出来的4把枪
             timeout = resp["SkinsPanelLayout"]["SingleItemOffersRemainingDurationInSeconds"]  # 剩余时间
             timeout = time.strftime("%H:%M:%S", time.gmtime(timeout))  # 将秒数转为标准时间
             log_time += f"[Api.shop] {format(time.time()-shop_api_time,'.4f')} "
             # 4.api获取用户vp/rp
-            vrDict = await fetch_vp_rp_dict(userdict)
+            vrDict = await Val.fetch_vp_rp_dict(userdict)
             # 5.请求shop-draw接口，获取返回值
             draw_time = time.time() # 开始画图计时
-            ret = await shop_draw_get(list_shop=list_shop,vp=vrDict['vp'],rp=vrDict['rp'])
+            ret = await ShopApi.shop_draw_get(list_shop=list_shop,vp=vrDict['vp'],rp=vrDict['rp'])
             if ret['code']: # 出现错误
                 raise Exception(f"shop-draw err! {ret}")
             # 返回成功
@@ -307,9 +306,9 @@ class MyClient(botpy.Client):
                 'entitlements_token': auth.entitlements_token
             }
             # 3.调用api，获取相关信息
-            resp = await fetch_player_loadout(userdict)  # 获取玩家装备栏
-            player_card = await fetch_playercard_uuid(resp['Identity']['PlayerCardID'])  # 玩家卡面id
-            player_title = await fetch_title_uuid(resp['Identity']['PlayerTitleID'])  # 玩家称号id
+            resp = await Val.fetch_player_loadout(userdict)  # 获取玩家装备栏
+            player_card = await Val.fetch_playercard_uuid(resp['Identity']['PlayerCardID'])  # 玩家卡面id
+            player_title = await Val.fetch_title_uuid(resp['Identity']['PlayerTitleID'])  # 玩家称号id
             # 3.1 检测返回值
             if 'data' not in player_card or player_card['status'] != 200:
                 player_card = {'data': {'wideArt': 'https://img.kookapp.cn/assets/2022-09/PDlf7DcoUH0ck03k.png'}}
@@ -327,21 +326,21 @@ class MyClient(botpy.Client):
                 return
 
             # 3.2 获取玩家等级
-            resp = await fetch_player_level(userdict)
+            resp = await Val.fetch_player_level(userdict)
             player_level = resp["Progress"]["Level"]     # 玩家等级
             player_level_xp = resp["Progress"]["XP"]     # 玩家等级经验值
             last_fwin = resp["LastTimeGrantedFirstWin"]  # 上次首胜时间
             next_fwin = resp["NextTimeFirstWinAvailable"]# 下次首胜重置
             # 3.3 获取玩家的vp和r点剩余
-            resp = await fetch_vp_rp_dict(userdict)
+            resp = await Val.fetch_vp_rp_dict(userdict)
 
             # 4.创建消息str
             text =f"玩家 {UserTokenDict[msg.author.id]['GameName']}#{UserTokenDict[msg.author.id]['TagLine']} 的个人信息\n"
             text+= f"玩家称号：" + player_title['data']['displayName'] + "\n"
-            text+= f"玩家等级：{player_level}  -  经验值：{player_level_xp}\n"
+            text+= f"玩家等级：{player_level}  |  经验值：{player_level_xp}\n"
             text+= f"上次首胜：{last_fwin}\n"
             text+= f"首胜重置：{next_fwin}\n"
-            text+= f"RP：{resp['rp']}  |  VP：{resp['vp']}"
+            text+= f"rp：{resp['rp']}  |  vp：{resp['vp']}"
             # 5.发送消息
             await msg.reply(content=text,image=player_card['data']['wideArt'])
             _log.info(f"[{GetTime()}] Au:{msg.author.id} uinfo reply successful!")
@@ -370,7 +369,7 @@ class MyClient(botpy.Client):
                 ret_dms = await self.api.create_dms(message.guild_id,message.author.id)
                 await self.api.post_dms(guild_id=ret_dms['guild_id'],content=text)
             # 判断是否出现了速率超速或403错误
-            elif loginStat.Bool(): 
+            elif Val.loginStat.Bool(): 
                 if '/ahri' in content or '/help' in content:
                     await self.help_cmd(message)
                 elif '/login' in content or '/tfa' in content:
@@ -380,7 +379,7 @@ class MyClient(botpy.Client):
                 elif '/uinfo' in content:
                     await self.uinfo_cmd(message)
             else: # 无法执行登录
-                await loginStat.sendForbidden(msg=Message)
+                await Val.loginStat.sendForbidden(msg=Message)
                 _log.info(f"[LoginStatus] Au:{message.author.id} Command Failed")
                 return
         except Exception as result:
@@ -401,7 +400,7 @@ class MyClient(botpy.Client):
                     _log.info(f"[BOT.KILL] bot off at {GetTime()}\n")
                     os._exit(0)
             # 判断是否出现了速率超速或403错误
-            elif loginStat.Bool():
+            elif Val.loginStat.Bool():
                 if '/login' in content:
                     # /login 账户 密码
                     first = content.find(' ') #第一个空格
@@ -416,7 +415,7 @@ class MyClient(botpy.Client):
                 elif '/uinfo' in content:
                     await self.uinfo_cmd(message)
             else: # 无法登录
-                await loginStat.sendForbidden(message)
+                await Val.loginStat.sendForbidden(message)
                 _log.info(f"[LoginStatus] Au:{message.author.id} Command Failed")
                 return
         except Exception as result:
