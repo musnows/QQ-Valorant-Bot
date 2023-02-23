@@ -279,7 +279,7 @@ class MyClient(botpy.Client):
                 _log.info(err_str, resp)
                 btext = f"KeyError:{result}, please re-login\n如果此问题重复出现，请联系开发者"
                 await msg.reply(content=f"出现键值错误\n{btext}")
-            if "upload image error" in str(result):
+            if "download file err" in str(result) or "upload image error" in str(result):
                 _log.info(err_str)
                 await msg.reply(content=f"[shop] 出现图片上传错误！这是常见错误，重试即可\n{result}")
             else:
@@ -348,7 +348,7 @@ class MyClient(botpy.Client):
             _log.info(f"ERR! [{GetTime()}] uinfo\n{traceback.format_exc()}")
             if "Identity" in str(result) or "Balances" in str(result):
                 await msg.reply(content=f"{at_text}[uinfo] 键值错误，请重新登录\n{result}")
-            elif "download file err" in str(result):
+            elif "download file err" in str(result)  or "upload image error"  in str(result):
                 await msg.reply(content=f"{at_text}{text}\n获取玩家卡面图片错误")
             else:
                 await msg.reply(content=f"{at_text}[uinfo] 未知错误\n{result}")
