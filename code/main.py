@@ -415,11 +415,18 @@ class MyClient(botpy.Client):
             elif Val.loginStat.Bool():
                 if '/login' in content:
                     # /login 账户 密码
+                    if len(content) < 8: # /login加两个空格 至少会有8个字符，少了有问题
+                        await message.reply(content=f"参数长度不足，请提供账户/密码\b栗子「/login 账户 密码」")
+                        return
+                    # 正常，分离参数
                     first = content.find(' ') #第一个空格
                     second = content.rfind(' ')#第二个空格
                     await self.login_cmd(message,account=content[first+1:second],passwd=content[second+1:],at_text=at_text)
                 elif '/tfa' in content:
                     # /tfa vcode
+                    if len(content) < 5: # /tfa加一个空格 至少会有5个字符
+                        await message.reply(content=f"参数长度不足，请提供邮箱验证码\n栗子「/tfa 114514」")
+                        return
                     first = content.rfind(' ') #第一个空格
                     await self.tfa_cmd(message,vcode=content[first+1:],at_text=at_text)
                 elif '/shop' in content or '/store' in content:
