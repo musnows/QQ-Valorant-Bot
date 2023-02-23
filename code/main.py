@@ -210,16 +210,16 @@ class MyClient(botpy.Client):
             await msg.reply(content=f"出现错误！tfa\n{result}")
     
     # 帮助命令
-    async def help_cmd(self, msg: Message):
+    async def help_cmd(self, msg: Message,at_text=""):
         text = help_text(self.robot.id)
-        await msg.reply(content=text)
+        await msg.reply(content=at_text+text)
         _log.info(f"[help] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
 
     # 获取商店
-    async def shop_cmd(self,msg:Message):
+    async def shop_cmd(self,msg:Message,at_text=""):
         _log.info(f"[shop] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
         if msg.author.id not in UserAuthDict:
-            await msg.reply(content=f"您尚未登录，请私聊使用「/login 账户 密码」登录")
+            await msg.reply(content=f"{at_text}您尚未登录，请私聊使用「/login 账户 密码」登录")
             return
         try:
             # 1.判断是否需要重新reauth
@@ -229,7 +229,7 @@ class MyClient(botpy.Client):
             # 2.重新获取token成功，从dict中获取玩家昵称
             player_gamename = f"{UserTokenDict[msg.author.id]['GameName']}#{UserTokenDict[msg.author.id]['TagLine']}"
             # 2.1 提示正在获取商店
-            await msg.reply(content=f"正在获取玩家「{player_gamename}」的每日商店")
+            await msg.reply(content=f"{at_text}正在获取玩家「{player_gamename}」的每日商店")
 
             # 2.2 计算获取每日商店要多久
             start_time = time.perf_counter()  #开始计时
@@ -266,7 +266,7 @@ class MyClient(botpy.Client):
             # 7.发送图片
             shop_using_time = format(time.perf_counter() - start_time, '.2f') # 结束总计时
             await msg.reply(
-                content=f"玩家「{player_gamename}」的商店\n本次查询耗时：{shop_using_time}s",
+                content=f"{at_text}玩家「{player_gamename}」的商店\n本次查询耗时：{shop_using_time}s",
                 image=ret['message']
             )
             # 8.结束，打印
@@ -288,10 +288,10 @@ class MyClient(botpy.Client):
             
 
     # 获取uinfo
-    async def uinfo_cmd(self,msg:Message):
+    async def uinfo_cmd(self,msg:Message,at_text=""):
         _log.info(f"[uinfo] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
         if msg.author.id not in UserAuthDict:
-            await msg.reply(content=f"您尚未登录，请私聊使用「/login 账户 密码」登录")
+            await msg.reply(content=f"{at_text}您尚未登录，请私聊使用「/login 账户 密码」登录")
             return
         text=" "# 先设置为空串，避免except中报错
         try:
@@ -322,7 +322,7 @@ class MyClient(botpy.Client):
                 _log.info(f"ERR![player_title] Au:{msg.author.id} uuid:{resp['Identity']['PlayerTitleID']}")
             # 可能遇到全新账户（没打过游戏）的情况
             if resp['Guns'] == None or resp['Sprays'] == None:  
-                await msg.reply(content=f"拳头api返回值错误，您是否登录了一个全新的账户？")
+                await msg.reply(content=f"{at_text}拳头api返回值错误，您是否登录了一个全新的账户？")
                 return
 
             # 3.2 获取玩家等级
@@ -335,7 +335,7 @@ class MyClient(botpy.Client):
             resp = await Val.fetch_vp_rp_dict(userdict)
 
             # 4.创建消息str
-            text =f"玩家 {UserTokenDict[msg.author.id]['GameName']}#{UserTokenDict[msg.author.id]['TagLine']} 的个人信息\n"
+            text =f"{at_text}玩家 {UserTokenDict[msg.author.id]['GameName']}#{UserTokenDict[msg.author.id]['TagLine']} 的个人信息\n"
             text+= f"玩家称号：" + player_title['data']['displayName'] + "\n"
             text+= f"玩家等级：{player_level}  |  经验值：{player_level_xp}\n"
             text+= f"上次首胜：{last_fwin}\n"
@@ -347,11 +347,11 @@ class MyClient(botpy.Client):
         except Exception as result:
             _log.info(f"ERR! [{GetTime()}] uinfo\n{traceback.format_exc()}")
             if "Identity" in str(result) or "Balances" in str(result):
-                await msg.reply(content=f"[uinfo] 键值错误，请重新登录\n{result}")
+                await msg.reply(content=f"{at_text}[uinfo] 键值错误，请重新登录\n{result}")
             elif "download file err" in str(result):
-                await msg.reply(content=f"{text}\n获取玩家卡面图片错误")
+                await msg.reply(content=f"{at_text}{text}\n获取玩家卡面图片错误")
             else:
-                await msg.reply(content=f"[uinfo] 未知错误\n{result}")
+                await msg.reply(content=f"{at_text}[uinfo] 未知错误\n{result}")
 
     # 监听公频消息
     async def on_at_message_create(self, message: Message):
@@ -361,12 +361,13 @@ class MyClient(botpy.Client):
                 chlist = listenConf.activateCh(gid=message.guild_id)
                 text = f"<@{message.author.id}>\n当前频道配置了命令专用子频道，请在专用子频道中使用机器人\n"
                 for ch in chlist:
-                    text+=f"<#{ch}>"
+                    text+=f"<#{ch}> "
                 await message.reply(content=text)
                 _log.info(f"[listenConf] abort cmd = G:{message.guild_id} C:{message.channel_id} Au:{message.author.id}")
                 return
             # 检测通过，执行
             content = message.content
+            at_text = f"<@{message.author.id}>\n"
             # 用于发起私信（解除3条私信限制）
             if '/pm' in content:
                 text = f"<@{message.author.id}>\n收到pm命令，「{self.robot.name}」给您发起了私信"
@@ -376,20 +377,20 @@ class MyClient(botpy.Client):
             # 判断是否出现了速率超速或403错误
             elif Val.loginStat.Bool(): 
                 if '/ahri' in content or '/help' in content:
-                    await self.help_cmd(message)
+                    await self.help_cmd(message,at_text)
                 elif '/login' in content or '/tfa' in content:
                     await message.reply(content=f"<@{message.author.id}>\n为了您的隐私，「/login」和「/tfa」命令仅私聊可用！\nPC端无bot私聊入口，请先在手机端上私聊bot，便可在PC端私聊\n使用方法详见/help命令")
                 elif '/shop' in content or '/store' in content:
-                    await self.shop_cmd(message)
+                    await self.shop_cmd(message,at_text)
                 elif '/uinfo' in content:
-                    await self.uinfo_cmd(message)
+                    await self.uinfo_cmd(message,at_text)
             else: # 无法执行登录
                 await Val.loginStat.sendForbidden(msg=Message)
                 _log.info(f"[LoginStatus] Au:{message.author.id} Command Failed")
                 return
         except Exception as result:
             _log.info(traceback.format_exc())
-            await message.reply(f"[on_at_message_create]\n出现了未知错误，请联系开发者！\n{result}")
+            await message.reply(f"<@{message.author.id}>\n[on_at_message_create]\n出现了未知错误，请联系开发者！\n{result}")
 
     # 监听私聊消息
     async def on_direct_message_create(self, message: DirectMessage):
