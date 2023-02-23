@@ -49,19 +49,19 @@ async def login_reauth(user_id: str):
             _log.info(base_print + "authflow() by AP")
             ret = True
     # 正好返回auth.reauthorize()的bool
-    return ret  
+    return ret
 
 
 # 判断是否需要重新获取token
 async def check_reauth(def_name: str = "", msg = None):
     """
     return value:
-     - True: no need to reauthorize / get `user_id` as params & reauhorize success 
+     - True: no need to reauthorize / get `user_id` as params & reauhorize success
      - False: unkown err / reauthorize failed
     """
     user_id = "[ERR!]"  # 先给userid赋值，避免下方打印的时候报错（不出意外是会被下面的语句修改的）
     # 判断传入的类型是不是消息 (公屏，私聊)
-    is_msg = isinstance(msg, Message) or isinstance(msg,DirectMessage) 
+    is_msg = isinstance(msg, Message) or isinstance(msg,DirectMessage)
     try:
         # 如果是str就直接用,是msg对象就用id
         user_id = msg.author.id  if is_msg else msg
@@ -80,7 +80,7 @@ async def check_reauth(def_name: str = "", msg = None):
         # 如果有这个键，就可以继续执行下面的内容（代表cookie过期了）
         key_test = resp['httpStatus']
         # 如果传入的是msg，则提示用户
-        if is_msg:  
+        if is_msg:
             text = f"获取「{def_name}」失败！正在尝试重新获取token，您无需操作"
             await msg.reply(content=f"{text}\n{resp['message']}")
         # 不管传入的是用户id还是msg，都传user_id进入该函数
@@ -89,7 +89,7 @@ async def check_reauth(def_name: str = "", msg = None):
             text = f"重新获取token失败，请私聊「/login」重新登录\n"
             await msg.reply(content=f"{text}\nAuto Reauthorize Failed!")
         # 返回真/假
-        return ret 
+        return ret
     except client_exceptions.ClientResponseError as result:
         err_str = f"[Check reauth] aiohttp ERR!\n{traceback.format_exc()}"
         if 'auth.riotgames.com' and '403' in str(result):
@@ -118,7 +118,7 @@ class MyClient(botpy.Client):
     async def on_ready(self):
         _log.info(f"robot 「{self.robot.name}」 on_ready!")
 
-    
+
     # 登录命令
     async def login_cmd(self,msg:Message,account:str,passwd:str,at_text):
         _log.info(f"[login] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id}")
@@ -139,14 +139,14 @@ class MyClient(botpy.Client):
             is2fa = resw['auth'].is2fa # 是否是2fa用户
             # 4.如果没有抛出异常，那就是完成登录了，设置用户的玩家uuid+昵称
             UserTokenDict[msg.author.id] = {
-                'auth_user_id': res_auth.user_id, 
-                'GameName': resw['auth'].Name, 
+                'auth_user_id': res_auth.user_id,
+                'GameName': resw['auth'].Name,
                 'TagLine': resw['auth'].Tag
             }
             UserAuthDict[msg.author.id] = {"auth": res_auth, "2fa": is2fa } # 将对象插入
             # 设置基础打印信息
             text = f"登陆成功！欢迎回来，{UserTokenDict[msg.author.id]['GameName']}#{UserTokenDict[msg.author.id]['TagLine']}"
-            info_text = "当前cookie有效期为2~3天，随后您需要重启登录"
+            info_text = "当前cookie有效期为2~3天，随后您需要重新登录"
 
             # 5.发送登录成功的信息
             await msg.reply(content=f"{text}\n{info_text}",message_reference=at_text)
@@ -191,7 +191,7 @@ class MyClient(botpy.Client):
             text=f"ERR! [{GetTime()}] login Au:{msg.author.id}\n{traceback.format_exc()}"
             _log.info(text)
             await msg.reply(content=f"出现了未知错误！login\n{result}",message_reference=at_text)
-    
+
 
     # 邮箱验证
     async def tfa_cmd(self,msg:Message,vcode:str,at_text):
@@ -209,7 +209,7 @@ class MyClient(botpy.Client):
             text=f"ERR! [{GetTime()}] tfa Au:{msg.author.id}\n{traceback.format_exc()}"
             _log.info(text)
             await msg.reply(content=f"出现错误！tfa\n{result}",message_reference=at_text)
-    
+
     # 帮助命令
     async def help_cmd(self, msg: Message,at_text):
         text = help_text(self.robot.id)
@@ -226,11 +226,11 @@ class MyClient(botpy.Client):
             # 1.判断是否需要重新reauth
             reau = await check_reauth("每日商店", msg)
             if reau == False: return  # 如果为假说明重新登录失败，直接退出
-            
+
             # 2.重新获取token成功，从dict中获取玩家昵称
             player_gamename = f"{UserTokenDict[msg.author.id]['GameName']}#{UserTokenDict[msg.author.id]['TagLine']}"
             # 2.1 提示正在获取商店
-            await msg.reply(content=f"正在获取玩家「{player_gamename}」的每日商店")
+            await msg.reply(content=f"正在获取玩家「{player_gamename}」的每日商店",message_reference=at_text)
 
             # 2.2 计算获取每日商店要多久
             start_time = time.perf_counter()  #开始计时
@@ -244,7 +244,7 @@ class MyClient(botpy.Client):
             log_time = ""
             shop_api_time = time.time() # api调用计时
             # 3.api获取每日商店
-            resp = await Val.fetch_daily_shop(userdict)  
+            resp = await Val.fetch_daily_shop(userdict)
             list_shop = resp["SkinsPanelLayout"]["SingleItemOffers"]  # 商店刷出来的4把枪
             timeout = resp["SkinsPanelLayout"]["SingleItemOffersRemainingDurationInSeconds"]  # 剩余时间
             timeout = time.strftime("%H:%M:%S", time.gmtime(timeout))  # 将秒数转为标准时间
@@ -259,7 +259,7 @@ class MyClient(botpy.Client):
             # 返回成功
             log_time += f"- [Drawing] {format(time.time() - draw_time,'.4f')} - [Au] {msg.author.id}"
             _log.info(log_time)
-            # 6.一切正常，获取图片bytes 
+            # 6.一切正常，获取图片bytes
             # https://bot.q.qq.com/wiki/develop/gosdk/api/message/message_format.html#message
             # 发现可以直接传图片url，但是sdk的exp里面没有，看来还是得自己看文档
             _log.info(f"[imgUrl] {ret['message']}")
@@ -267,7 +267,7 @@ class MyClient(botpy.Client):
             # 7.发送图片
             shop_using_time = format(time.perf_counter() - start_time, '.2f') # 结束总计时
             await msg.reply(
-                content=f"玩家「{player_gamename}」的商店\n本次查询耗时：{shop_using_time}s",
+                content=f"<@{msg.author.id}>\n玩家「{player_gamename}」的商店\n本次查询耗时：{shop_using_time}s",
                 image=ret['message']
             )
             # 8.结束，打印
@@ -279,14 +279,14 @@ class MyClient(botpy.Client):
             if "SkinsPanelLayout" in str(result):
                 _log.info(err_str, resp)
                 btext = f"KeyError:{result}, please re-login\n如果此问题重复出现，请联系开发者"
-                await msg.reply(content=f"[shop] 出现键值错误\n{btext}")
+                await msg.reply(content=f"[shop] 出现键值错误\n{btext}",message_reference=at_text)
             if "download file err" in str(result) or "upload image error" in str(result):
                 _log.info(err_str)
-                await msg.reply(content=f"[shop] 出现图片上传错误！这是常见错误，重试即可\n{result}")
+                await msg.reply(content=f"[shop] 出现图片上传错误！这是常见错误，重试即可\n{result}",message_reference=at_text)
             else:
                 _log.info(err_str)
-                await msg.reply(content=f"[shop] 出现未知错误！\n{result}")
-            
+                await msg.reply(content=f"[shop] 出现未知错误！\n{result}",message_reference=at_text)
+
 
     # 获取uinfo
     async def uinfo_cmd(self,msg:Message,at_text=""):
@@ -322,8 +322,8 @@ class MyClient(botpy.Client):
                 }
                 _log.info(f"ERR![player_title] Au:{msg.author.id} uuid:{resp['Identity']['PlayerTitleID']}")
             # 可能遇到全新账户（没打过游戏）的情况
-            if resp['Guns'] == None or resp['Sprays'] == None:  
-                await msg.reply(content=f"拳头api返回值错误，您是否登录了一个全新的账户？")
+            if resp['Guns'] == None or resp['Sprays'] == None:
+                await msg.reply(content=f"拳头api返回值错误，您是否登录了一个全新的账户？",message_reference=at_text)
                 return
 
             # 3.2 获取玩家等级
@@ -343,33 +343,33 @@ class MyClient(botpy.Client):
             text+= f"首胜重置：{next_fwin}\n"
             text+= f"rp：{resp['rp']}  |  vp：{resp['vp']}"
             # 5.发送消息
-            await msg.reply(content=text,image=player_card['data']['wideArt'])
+            await msg.reply(content=f"<@{msg.author.id}>\n"+text,image=player_card['data']['wideArt'])
             _log.info(f"[{GetTime()}] Au:{msg.author.id} uinfo reply successful!")
         except Exception as result:
             _log.info(f"ERR! [{GetTime()}] uinfo\n{traceback.format_exc()}")
             if "Identity" in str(result) or "Balances" in str(result):
-                await msg.reply(content=f"[uinfo] 键值错误，请重新登录\n{result}")
+                await msg.reply(content=f"[uinfo] 键值错误，请重新登录\n{result}",message_reference=at_text)
             elif "download file err" in str(result)  or "upload image error"  in str(result):
-                await msg.reply(content=f"[uinfo] {text}\n获取玩家卡面图片错误")
+                await msg.reply(content=f"<@{msg.author.id}>\n{text}\n获取玩家卡面图片错误",message_reference=at_text)
             else:
-                await msg.reply(content=f"[uinfo] 未知错误\n{result}")
+                await msg.reply(content=f"[uinfo] 未知错误\n{result}",message_reference=at_text)
 
     # 监听公频消息
     async def on_at_message_create(self, message: Message):
         try:
+            # 构造消息发送请求数据对象
+            at_text = Reference(message_id=message.id)
             # 检测配置，设置某个服务器的特定频道才能使用bot（需要修改配置文件)
             if not listenConf.isActivate(gid=message.guild_id,chid=message.channel_id):
                 chlist = listenConf.activateCh(gid=message.guild_id)
-                text = f"<@{message.author.id}>\n当前频道配置了命令专用子频道，请在专用子频道中使用机器人\n"
+                text = f"当前频道配置了命令专用子频道，请在专用子频道中使用机器人\n"
                 for ch in chlist:
                     text+=f"<#{ch}> "
-                await message.reply(content=text)
+                await message.reply(content=text,message_reference=at_text)
                 _log.info(f"[listenConf] abort cmd = G:{message.guild_id} C:{message.channel_id} Au:{message.author.id}")
                 return
             # 检测通过，执行
             content = message.content
-            # 构造消息发送请求数据对象
-            at_text = Reference(message_id=message.id)
             # 用于发起私信（解除3条私信限制）
             if '/pm' in content:
                 text = f"收到pm命令，「{self.robot.name}」给您发起了私信"
@@ -377,7 +377,7 @@ class MyClient(botpy.Client):
                 ret_dms = await self.api.create_dms(message.guild_id,message.author.id)
                 await self.api.post_dms(guild_id=ret_dms['guild_id'],content=text)
             # 判断是否出现了速率超速或403错误
-            elif Val.loginStat.Bool(): 
+            elif Val.loginStat.Bool():
                 if '/ahri' in content or '/help' in content:
                     await self.help_cmd(message,at_text)
                 elif '/login' in content or '/tfa' in content:
