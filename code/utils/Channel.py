@@ -13,3 +13,9 @@ class listenConf:
             return False
         
         return True
+
+    def activateCh(gid:str):
+        if gid not in guild_config:
+            return None
+        else:
+            return guild_config[gid]['ch']

@@ -358,13 +358,18 @@ class MyClient(botpy.Client):
         try:
             # 检测配置，设置某个服务器的特定频道才能使用bot（需要修改配置文件)
             if not listenConf.isActivate(gid=message.guild_id,chid=message.channel_id):
-                _log.info(f"[listenConf] abort cmd")
+                chlist = listenConf.activateCh(gid=message.guild_id)
+                text = f"<@{message.author.id}>\n当前频道配置了命令专用子频道，请在专用子频道中使用机器人\n"
+                for ch in chlist:
+                    text+=f"<#{ch}>"
+                await message.reply(content=text)
+                _log.info(f"[listenConf] abort cmd = G:{message.guild_id} C:{message.channel_id} Au:{message.author.id}")
                 return
             # 检测通过，执行
             content = message.content
             # 用于发起私信（解除3条私信限制）
             if '/pm' in content:
-                text = f"收到pm命令，「{self.robot.name}」给您发起了私信"
+                text = f"<@{message.author.id}>\n收到pm命令，「{self.robot.name}」给您发起了私信"
                 await message.reply(content=text)
                 ret_dms = await self.api.create_dms(message.guild_id,message.author.id)
                 await self.api.post_dms(guild_id=ret_dms['guild_id'],content=text)
@@ -373,7 +378,7 @@ class MyClient(botpy.Client):
                 if '/ahri' in content or '/help' in content:
                     await self.help_cmd(message)
                 elif '/login' in content or '/tfa' in content:
-                    await message.reply(content=f"为了您的隐私，「/login」和「/tfa」命令仅私聊可用！\nPC端无bot私聊入口，请先在手机端上私聊bot，便可在PC端私聊")
+                    await message.reply(content=f"<@{message.author.id}>\n为了您的隐私，「/login」和「/tfa」命令仅私聊可用！\nPC端无bot私聊入口，请先在手机端上私聊bot，便可在PC端私聊\n使用方法详见/help命令")
                 elif '/shop' in content or '/store' in content:
                     await self.shop_cmd(message)
                 elif '/uinfo' in content:
