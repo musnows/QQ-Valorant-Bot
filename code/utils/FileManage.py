@@ -132,6 +132,7 @@ ValSkinList = FileManage("./log/ValSkin.json")  # valorant皮肤
 ValPriceList = FileManage("./log/ValPrice.json")  # valorant皮肤价格
 ValBundleList = FileManage("./log/ValBundle.json")  # valorant捆绑包
 ValItersList = FileManage("./log/ValIters.json")  # valorant皮肤等级
+SkinRateDict = FileManage("./log/ValSkinRate.json")  # valorant皮肤评分信息
 
 UserAuthID = FileManage("./log/UserAuthID.json")  # 用户游戏id/uuid，账户密码重登记录
 UserTokenDict = UserAuthID['data']  # riot用户游戏id和uuid

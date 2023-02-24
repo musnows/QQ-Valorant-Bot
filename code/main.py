@@ -10,7 +10,7 @@ from aiohttp import client_exceptions
 from botpy.message import Message,DirectMessage
 from botpy.types.message import Reference
 from utils.FileManage import bot_config,UserTokenDict,UserAuthDict,UserApLog,save_all_file,_log
-from utils.valorant import Val,ShopApi
+from utils.valorant import Val,ShopApi,ShopRate
 from utils.valorant.EzAuth import EzAuthExp,auth2faWait,auth2fa,authflow,User2faCode
 from utils.Gtime import GetTime
 from utils.Channel import listenConf
@@ -353,6 +353,42 @@ class MyClient(botpy.Client):
                 await msg.reply(content=f"<@{msg.author.id}>\n{text}\n获取玩家卡面图片错误",message_reference=at_text)
             else:
                 await msg.reply(content=f"[uinfo] 未知错误\n{result}",message_reference=at_text)
+    
+    # 获取昨日最高/最低
+    async def kkn_cmd(self,msg:Message,at_text):
+        _log.info(f"[kkn] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
+        try:
+            # 从数据库中获取
+            cmpRet = await ShopRate.get_ShopCmp()
+            if not cmpRet['status']:
+                await msg.reply(content=f"获取昨日天选之子和丐帮帮主出错！请重试或联系开发者",message_reference=at_text)
+                return
+            
+            # best
+            text = f"天选之子 综合评分 {cmpRet['best']['rating']}"
+            text+= f", 来自{cmpRet['best']['platform']}\n"
+            for sk in cmpRet['best']['skin_list']:
+                # 数据库中获取一个皮肤的评分情况
+                skinRet = await ShopRate.query_SkinRate(sk)
+                if skinRet['status']:
+                    skin_name = f"「{skinRet['skin_name']}」"
+                    text += f"%-45s\t\t评分: {skinRet['rating']}\n" % skin_name
+            # worse
+            text+="\n"
+            text+=f"丐帮帮主 综合评分 {cmpRet['worse']['rating']}"
+            text+=f", 来自{cmpRet['worse']['platform']}\n"
+            for sk in cmpRet['worse']['skin_list']:
+                # 数据库中获取一个皮肤的评分情况
+                skinRet = await ShopRate.query_SkinRate(sk)
+                if skinRet['status']:
+                    skin_name = f"「{skinRet['skin_name']}」"
+                    text += f"%-45s\t\t评分: {skinRet['rating']}\n" % skin_name
+
+            await msg.reply(content=text,message_reference=at_text)
+            _log.info(f"[{GetTime()}] [kkn] reply success")
+        except Exception as result:
+            _log.info(f"ERR! [{GetTime()}] kkn\n{traceback.format_exc()}")
+            await msg.reply(content=f"[kkn] 出现错误\n{result}",message_reference=at_text)
 
     # 监听公频消息
     async def on_at_message_create(self, message: Message):
@@ -376,6 +412,8 @@ class MyClient(botpy.Client):
                 await message.reply(content=text,message_reference=at_text)
                 ret_dms = await self.api.create_dms(message.guild_id,message.author.id)
                 await self.api.post_dms(guild_id=ret_dms['guild_id'],content=text)
+            elif '/kkn' in content:
+                await self.kkn_cmd(msg=message,at_text=at_text)
             # 判断是否出现了速率超速或403错误
             elif Val.loginStat.Bool():
                 if '/ahri' in content or '/help' in content:
@@ -411,6 +449,8 @@ class MyClient(botpy.Client):
             elif '/mem' in content and (message.author.id == bot_config['master_id']):
                 text = await get_proc_info()
                 await message.reply(content=text,message_reference=at_text)
+            elif '/kkn' in content:
+                await self.kkn_cmd(msg=message,at_text=at_text)
             # 判断是否出现了速率超速或403错误
             elif Val.loginStat.Bool():
                 if '/login' in content:
