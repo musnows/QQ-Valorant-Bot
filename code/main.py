@@ -21,8 +21,9 @@ def help_text(bot_id:str):
     text = "以下为阿狸的的命令列表\n"
     text+= "「/login 账户 密码」登录拳头账户，必须私聊使用\n"
     text+= "「/tfa 验证码」提供邮箱验证码，必须私聊使用\n"
-    text+=f"「<@{bot_id}> /shop」查询商店\n"
-    text+=f"「<@{bot_id}> /uinfo」查询用户vp/rp/等级\n"
+    text+=f"「/shop」查询商店\n"
+    text+=f"「/uinfo」查询用户vp/rp/等级\n"
+    text+=f"在公频中使用命令，需要在命令前加上 <@{bot_id}>\n"
     text+=f"机器人帮助频道，可在机器人介绍中点击加入！"
     return text
 
@@ -65,6 +66,7 @@ async def check_reauth(def_name: str = "", msg = None):
     try:
         # 如果是str就直接用,是msg对象就用id
         user_id = msg.author.id  if is_msg else msg
+        at_text = f"<@{user_id}>\n"
         _log.info(f"[Check reauth] Au:{user_id}")
         # 找键值，获取auth对象
         auth = UserAuthDict[user_id]['auth']
@@ -81,12 +83,12 @@ async def check_reauth(def_name: str = "", msg = None):
         key_test = resp['httpStatus']
         # 如果传入的是msg，则提示用户
         if is_msg:
-            text = f"获取「{def_name}」失败！正在尝试重新获取token，您无需操作"
+            text = f"{at_text}获取「{def_name}」失败！正在尝试重新获取token，您无需操作"
             await msg.reply(content=f"{text}\n{resp['message']}")
         # 不管传入的是用户id还是msg，都传user_id进入该函数
         ret = await login_reauth(user_id)
         if ret == False and is_msg:  #没有正常返回,重新获取token失败
-            text = f"重新获取token失败，请私聊「/login」重新登录\n"
+            text = f"{at_text}重新获取token失败，请私聊「/login」重新登录\n"
             await msg.reply(content=f"{text}\nAuto Reauthorize Failed!")
         # 返回真/假
         return ret
@@ -101,7 +103,7 @@ async def check_reauth(def_name: str = "", msg = None):
         else:
             err_str += f"[Check reauth] Unkown aiohttp ERR!"
         # 登陆失败
-        if is_msg: msg.reply(f"出现错误！check_reauth:\naiohttp client_exceptions ClientResponseError")
+        if is_msg: msg.reply(f"{at_text}出现错误！check_reauth:\naiohttp client_exceptions ClientResponseError")
         _log.info(err_str)
         return False
     except Exception as result:
@@ -109,7 +111,7 @@ async def check_reauth(def_name: str = "", msg = None):
             _log.info(f"[Check reauth] Au:{user_id} No need to reauthorize [{result}]")
             return True
         else:
-            if is_msg: msg.reply(f"出现错误！check_reauth:\n{result}")
+            if is_msg: msg.reply(f"{at_text}出现错误！check_reauth:\n{result}")
             _log.info(f"[Check reauth] Unkown ERR!\n{traceback.format_exc()}")
             return False
 
