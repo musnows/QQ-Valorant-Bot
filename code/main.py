@@ -269,13 +269,13 @@ class MyClient(botpy.Client):
             # 发现可以直接传图片url，但是sdk的exp里面没有，看来还是得自己看文档
             _log.info(f"[imgUrl] {ret['message']}")
             # img_bytes= await shop_img_load(ret['message'],key=msg.author.id)
-            # 7.发送图片
+            # 发送图片
             shop_using_time = format(time.perf_counter() - start_time, '.2f') # 结束总计时
             await msg.reply(
-                content=f"<@{msg.author.id}>\n玩家「{player_gamename}」的商店\n本次查询耗时：{shop_using_time}s",
+                content=f"<@{msg.author.id}>\n玩家「{player_gamename}」的商店\n本次查询耗时：{shop_using_time}s\n\n{cm}",
                 image=ret['message']
             )
-            # 8.结束，打印
+            # 结束，打印
             _log.info(
                 f"[{GetTime()}] Au:{msg.author.id} daily_shop reply success [{shop_using_time}]"
             )
@@ -509,13 +509,33 @@ class MyClient(botpy.Client):
                 await message.reply(content=text,message_reference=at_text)
                 ret_dms = await self.api.create_dms(message.guild_id,message.author.id)
                 await self.api.post_dms(guild_id=ret_dms['guild_id'],content=text)
+            elif '/ahri' in content or '/help' in content:
+                await self.help_cmd(message,at_text)
             elif '/kkn' in content:
                 await self.kkn_cmd(msg=message,at_text=at_text)
+            elif '/rate' in content:
+                # /rate 皮肤名字
+                if len(content) < 6: # /rate加一个空格 至少会有6个字符
+                    await message.reply(content=f"参数长度不足，请提供皮肤名\n栗子「/rate 皮肤名字」")
+                    return
+                # 正常，分离参数
+                content = content[content.find("/rate"):] # 把命令之前的内容给去掉
+                first = content.find(' ') #第一个空格
+                await self.rate_cmd(message,name=content[first+1:],at_text=at_text)
+            elif '/rts' in content:
+                # /rts 编号 分数 评论
+                if len(content) < 7: # /rts加3个空格 至少会有7个字符
+                    await message.reply(content=f"参数长度不足，请检查您的参数\n栗子「/rts 编号 分数 评论」")
+                    return
+                # 把命令之前的内容给去掉
+                content = content[content.find("/rts"):]
+                first = content.find(' ') #第1个空格
+                second = content.find(' ',first+1)#第2个空格
+                third = content.rfind(' ')#第3个空格
+                await self.rts_cmd(message,index=int(content[first+1:second]),rating=int(content[second+1:third]),comment=content[third+1:],at_text=at_text)
             # 判断是否出现了速率超速或403错误
             elif Val.loginStat.Bool():
-                if '/ahri' in content or '/help' in content:
-                    await self.help_cmd(message,at_text)
-                elif '/login' in content or '/tfa' in content:
+                if '/login' in content or '/tfa' in content:
                     await message.reply(content=f"为了您的隐私，「/login」和「/tfa」命令仅私聊可用！\nPC端无bot私聊入口，请先在手机端上私聊bot，便可在PC端私聊\n使用方法详见/help命令",message_reference=at_text)
                 elif '/shop' in content or '/store' in content:
                     await self.shop_cmd(message,at_text)
