@@ -21,8 +21,11 @@ def help_text(bot_id:str):
     text = "以下为阿狸的的命令列表\n"
     text+= "「/login 账户 密码」登录拳头账户，必须私聊使用\n"
     text+= "「/tfa 验证码」提供邮箱验证码，必须私聊使用\n"
-    text+=f"「/shop」查询商店\n"
-    text+=f"「/uinfo」查询用户vp/rp/等级\n"
+    text+= "「/shop」查询商店\n"
+    text+= "「/uinfo」查询用户vp/rp/等级\n"
+    text+= "「/rate 皮肤名」查找皮肤，选择指定皮肤进行打分\n"
+    text+= "「/rts 序号 打分 吐槽」选中皮肤序号，给该皮肤打个分(0~100) 再吐槽一下!\n"
+    text+= "「/kkn」查看昨日评分最高/最低的用户\n"
     text+=f"在公频中使用命令，需要在命令前加上 <@{bot_id}>\n"
     text+=f"机器人帮助频道，可在机器人介绍中点击加入！"
     return text
