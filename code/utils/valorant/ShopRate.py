@@ -7,6 +7,7 @@ import traceback
 from utils.valorant import Val
 from utils.FileManage import config,SkinRateDict
 leancloud.init(config["leancloud"]["appid"], master_key=config["leancloud"]["master_key"])
+PLATFORM = "qqchannel"
 
 # 获取皮肤评价的信息
 async def get_shop_rate(list_shop: dict, user_id: str):
@@ -218,7 +219,7 @@ async def query_UserCmt(user_id:str):
      A list containing the skin evaluated by the user,
     """
     query = leancloud.Query('UserCmt')
-    query.equal_to('platform', 'kook')
+    query.equal_to('platform', PLATFORM)
     query.equal_to('userId', user_id) # 查找usercmt中有没有该用户
     objlist = query.find()
     if len(objlist) > 0 : # 存在 
@@ -242,7 +243,7 @@ async def get_skinlist_rate_text(skinlist:list,user_id:str):
     userCmtList = await query_UserCmt(user_id)
     i=0
     query = leancloud.Query('UserRate')
-    query.equal_to('platform', 'kook')
+    query.equal_to('platform', PLATFORM)
     text = ""  # 模拟一个选择表
     for w in skinlist:
         # 先插入皮肤名字和皮肤价格
@@ -309,7 +310,7 @@ async def update_UserRate(skin_uuid:str,rate_info:dict,user_id:str):
         obj = UserRate()
         obj.set('skinUuid',skin_uuid)
         obj.set('skinName',rate_info['name'])
-        obj.set('platform','kook')
+        obj.set('platform',PLATFORM)
         obj.set('userId',user_id)
 
     obj.set('comment',rate_info['cmt'])

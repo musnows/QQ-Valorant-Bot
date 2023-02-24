@@ -9,7 +9,7 @@ from aiohttp import client_exceptions
 
 from botpy.message import Message,DirectMessage
 from botpy.types.message import Reference
-from utils.FileManage import bot_config,UserTokenDict,UserAuthDict,UserApLog,save_all_file,_log
+from utils.FileManage import bot_config,UserTokenDict,UserAuthDict,UserApLog,save_all_file,_log,SkinRateDict,UserRtsDict
 from utils.valorant import Val,ShopApi,ShopRate
 from utils.valorant.EzAuth import EzAuthExp,auth2faWait,auth2fa,authflow,User2faCode
 from utils.Gtime import GetTime
@@ -391,6 +391,94 @@ class MyClient(botpy.Client):
         except Exception as result:
             _log.info(f"ERR! [{GetTime()}] kkn\n{traceback.format_exc()}")
             await msg.reply(content=f"[kkn] 出现错误\n{result}",message_reference=at_text)
+    
+    # 选择需要评论的皮肤
+    async def rate_cmd(self,msg:Message,name:str,at_text):
+        _log.info(f"[rate] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
+        try:
+            retlist = await ShopRate.get_available_skinlist(name)
+            if retlist == []:  # 空list，有问题
+                await msg.reply(content=f"该皮肤不在列表中[或没有价格]，请重新查询！",message_reference=at_text)
+                return
+
+            # 将皮肤list插入到选择列表中，用户使用/rts命令选择
+            UserRtsDict[msg.author.id] = retlist
+            # 获取选择列表的text
+            ret = await ShopRate.get_skinlist_rate_text(retlist,msg.author.id)
+            text = f"===========\n{ret['text']}===========\n"
+            head = f"查询到 {name} 相关皮肤如下\n"
+            sub_text = "请使用以下命令对皮肤进行评分;\n√代表您已评价过该皮肤，+已有玩家评价，-无人评价\n"
+            # 操作介绍
+            text1 =  "===========\n"
+            text1 += "「/rts 序号 评分 吐槽」\n"
+            text1 += "序号：上面列表中的皮肤序号\n"
+            text1 += "评分：给皮肤打分，范围0~100\n"
+            text1 += "吐槽：说说你对这个皮肤的看法\n"
+            text1 += "吐槽的时候请注意文明用语！\n"
+            text1 += "===========\n"
+            text1 += f"您已经评价过了 {ret['sum']} 个皮肤"
+            # 发送
+            await msg.reply(content=head+text+sub_text+text1,message_reference=at_text)
+        except Exception as result:
+            _log.info(f"ERR! [{GetTime()}] rate\n{traceback.format_exc()}")
+            await msg.reply(content=f"[rate] 出现错误\n{result}",message_reference=at_text)  
+
+    # 评论皮肤
+    async def rts_cmd(self,msg:Message,index:int,rating:int,comment:str,at_text):
+        _log.info(f"[rts] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
+        try:
+            if msg.author.id in UserRtsDict:
+                _index = int(index)  #转成int下标（不能处理负数）
+                _rating = int(rating)  #转成分数
+                if _index >= len(UserRtsDict[msg.author.id]):  #下标判断，避免越界
+                    await msg.reply(f"您的选择越界了！请正确填写序号")
+                    return
+                elif _rating < 0 or _rating > 100:
+                    await msg.reply(f"您的评分有误，正确范围为0~100")
+                    return
+
+                S_skin = UserRtsDict[msg.author.id][_index]
+                skin_uuid = S_skin['skin']['lv_uuid']
+                text1 = ""
+                text2 = ""
+                # 先从leancloud获取该皮肤的分数
+                skin_rate = await ShopRate.query_SkinRate(skin_uuid)
+                if skin_rate['status']: # 找到了
+                    #用户的评分和皮肤平均分差值不能超过32，避免有人乱刷分
+                    if abs(float(_rating) - skin_rate['rating']) <= 32:
+                        # 计算分数
+                        point = (skin_rate['rating'] + float(_rating)) / 2
+                        # 更新数据库中皮肤评分
+                        await ShopRate.update_SkinRate(skin_uuid,point)
+                    else:  # 差值过大，不计入皮肤平均值
+                        point = skin_rate['rating']
+                        text2 += f"由于您的评分和皮肤平均分差值大于32，所以您的评分不会计入皮肤平均分，但您的评论会进行保留\n"
+
+                # 用户之前没有评价过，新建键值
+                if msg.author.id not in SkinRateDict['data']:
+                    SkinRateDict['data'][msg.author.id] = {}
+                # 设置uuid的键值
+                SkinRateDict['data'][msg.author.id][skin_uuid] = {}
+                SkinRateDict['data'][msg.author.id][skin_uuid]['name'] = S_skin['skin']['displayName']
+                SkinRateDict['data'][msg.author.id][skin_uuid]['cmt'] = comment
+                SkinRateDict['data'][msg.author.id][skin_uuid]['pit'] = point
+                SkinRateDict['data'][msg.author.id][skin_uuid]['time'] = int(time.time()) # 秒级
+                SkinRateDict['data'][msg.author.id][skin_uuid]['msg_id'] = msg.id
+                # 数据库添加该评论
+                await ShopRate.update_UserRate(skin_uuid,SkinRateDict['data'][msg.author.id][skin_uuid],msg.author.id)
+
+                text1 += f"评价成功！{S_skin['skin']['displayName']}"
+                text2 += f"您的评分：{_rating}\n"
+                text2 += f"皮肤平均分：{point}\n"
+                text2 += f"您的评语：{comment}"
+                # 设置成功并删除list后，再发送提醒事项设置成功的消息
+                await msg.reply(content=text1+"\n"+text2,message_reference=at_text)
+                _log.info(f"[{GetTime()}] [rts] Au:{msg.author.id} {text1}")
+            else:
+                await msg.reply(content=f"您需要执行 `/rate 皮肤名` 来查找皮肤\n再使用 `/rts` 进行选择",message_reference=at_text)
+        except Exception as result:
+            _log.info(f"ERR! [{GetTime()}] rts\n{traceback.format_exc()}")
+            await msg.reply(content=f"[rts] 出现错误\n{result}",message_reference=at_text)
 
     # 监听公频消息
     async def on_at_message_create(self, message: Message):
@@ -453,6 +541,23 @@ class MyClient(botpy.Client):
                 await message.reply(content=text,message_reference=at_text)
             elif '/kkn' in content:
                 await self.kkn_cmd(msg=message,at_text=at_text)
+            elif '/rate' in content:
+                # /rate 皮肤名字
+                if len(content) < 6: # /rate加一个空格 至少会有6个字符
+                    await message.reply(content=f"参数长度不足，请提供皮肤名\n栗子「/rate 皮肤名字」")
+                    return
+                # 正常，分离参数
+                first = content.find(' ') #第一个空格
+                await self.rate_cmd(message,name=content[first+1:],at_text=at_text)
+            elif '/rts' in content:
+                # /rts 编号 分数 评论
+                if len(content) < 7: # /rts加3个空格 至少会有7个字符
+                    await message.reply(content=f"参数长度不足，请检查您的参数\n栗子「/rts 编号 分数 评论」")
+                    return
+                first = content.find(' ') #第1个空格
+                second = content.find(' ',first+1)#第2个空格
+                third = content.rfind(' ')#第3个空格
+                await self.rts_cmd(message,index=int(content[first+1:second]),rating=int(content[second+1:third]),comment=content[third+1:],at_text=at_text)
             # 判断是否出现了速率超速或403错误
             elif Val.loginStat.Bool():
                 if '/login' in content:
