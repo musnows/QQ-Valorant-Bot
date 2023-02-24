@@ -235,7 +235,7 @@ async def update_UserCmt(user_id:str,skin_uuid:str):
     query = UserCmt.query
     # 先查找是否有userid和平台都相同的obj（如有，直接更新评论、评分、时间）
     query.equal_to('userId', user_id)
-    query.equal_to('platform','kook')
+    query.equal_to('platform',PLATFORM)
     objlist = query.find()
     if len(objlist)>0: # 有，更新
         obj = objlist[0]
@@ -243,7 +243,7 @@ async def update_UserCmt(user_id:str,skin_uuid:str):
         skinList.append(skin_uuid)
     else: # 没有，新建
         obj = UserCmt()
-        obj.set('platform','kook')
+        obj.set('platform',PLATFORM)
         obj.set('userId',user_id)
 
     obj.set('skinList',skinList)
