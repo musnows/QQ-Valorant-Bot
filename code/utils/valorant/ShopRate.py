@@ -151,7 +151,6 @@ async def update_ShopCmp():
         if len(objlist) == 0:
             raise Exception("leancloud find today err!")
         # 开始更新，先设置为最差
-        platfrom = 'kook'
         rate_avg = SkinRateDict["kkn"]["worse"]["pit"]
         list_shop = SkinRateDict["kkn"]["worse"]["skin"]
         user_id = SkinRateDict["kkn"]["worse"]["kook_id"]
@@ -170,7 +169,7 @@ async def update_ShopCmp():
             i.set('userId',user_id)
             i.set('skinList',list_shop)
             i.set('rating',rate_avg)
-            i.set('platfrom',platfrom)
+            i.set('platform',PLATFORM)
             i.save()
             print(f"[update_shop_cmp] saving best:{i.get('best')}")
     except:
