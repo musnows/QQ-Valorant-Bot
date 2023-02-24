@@ -427,55 +427,59 @@ class MyClient(botpy.Client):
     async def rts_cmd(self,msg:Message,index:int,rating:int,comment:str,at_text):
         _log.info(f"[rts] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
         try:
-            if msg.author.id in UserRtsDict:
-                _index = int(index)  #转成int下标（不能处理负数）
-                _rating = int(rating)  #转成分数
-                if _index >= len(UserRtsDict[msg.author.id]):  #下标判断，避免越界
-                    await msg.reply(f"您的选择越界了！请正确填写序号")
-                    return
-                elif _rating < 0 or _rating > 100:
-                    await msg.reply(f"您的评分有误，正确范围为0~100")
-                    return
-
-                S_skin = UserRtsDict[msg.author.id][_index]
-                skin_uuid = S_skin['skin']['lv_uuid']
-                text1 = ""
-                text2 = ""
-                # 先从leancloud获取该皮肤的分数
-                skin_rate = await ShopRate.query_SkinRate(skin_uuid)
-                if skin_rate['status']: # 找到了
-                    #用户的评分和皮肤平均分差值不能超过32，避免有人乱刷分
-                    if abs(float(_rating) - skin_rate['rating']) <= 32:
-                        # 计算分数
-                        point = (skin_rate['rating'] + float(_rating)) / 2
-                        # 更新数据库中皮肤评分
-                        await ShopRate.update_SkinRate(skin_uuid,point)
-                    else:  # 差值过大，不计入皮肤平均值
-                        point = skin_rate['rating']
-                        text2 += f"由于您的评分和皮肤平均分差值大于32，所以您的评分不会计入皮肤平均分，但您的评论会进行保留\n"
-
-                # 用户之前没有评价过，新建键值
-                if msg.author.id not in SkinRateDict['data']:
-                    SkinRateDict['data'][msg.author.id] = {}
-                # 设置uuid的键值
-                SkinRateDict['data'][msg.author.id][skin_uuid] = {}
-                SkinRateDict['data'][msg.author.id][skin_uuid]['name'] = S_skin['skin']['displayName']
-                SkinRateDict['data'][msg.author.id][skin_uuid]['cmt'] = comment
-                SkinRateDict['data'][msg.author.id][skin_uuid]['pit'] = point
-                SkinRateDict['data'][msg.author.id][skin_uuid]['time'] = int(time.time()) # 秒级
-                SkinRateDict['data'][msg.author.id][skin_uuid]['msg_id'] = msg.id
-                # 数据库添加该评论
-                await ShopRate.update_UserRate(skin_uuid,SkinRateDict['data'][msg.author.id][skin_uuid],msg.author.id)
-
-                text1 += f"评价成功！{S_skin['skin']['displayName']}"
-                text2 += f"您的评分：{_rating}\n"
-                text2 += f"皮肤平均分：{point}\n"
-                text2 += f"您的评语：{comment}"
-                # 设置成功并删除list后，再发送提醒事项设置成功的消息
-                await msg.reply(content=text1+"\n"+text2,message_reference=at_text)
-                _log.info(f"[{GetTime()}] [rts] Au:{msg.author.id} {text1}")
-            else:
+            if msg.author.id not in UserRtsDict:
                 await msg.reply(content=f"您需要执行 `/rate 皮肤名` 来查找皮肤\n再使用 `/rts` 进行选择",message_reference=at_text)
+                return
+
+            _index = int(index)  #转成int下标（不能处理负数）
+            _rating = int(rating)  #转成分数
+            if _index >= len(UserRtsDict[msg.author.id]):  #下标判断，避免越界
+                await msg.reply(f"您的选择越界了！请正确填写序号")
+                return
+            elif _rating < 0 or _rating > 100:
+                await msg.reply(f"您的评分有误，正确范围为0~100")
+                return
+
+            S_skin = UserRtsDict[msg.author.id][_index]
+            skin_uuid = S_skin['skin']['lv_uuid']
+            point = _rating
+            text1 = ""
+            text2 = ""
+            # 先从leancloud获取该皮肤的分数
+            skin_rate = await ShopRate.query_SkinRate(skin_uuid)
+            if skin_rate['status']: # 找到了
+                #用户的评分和皮肤平均分差值不能超过32，避免有人乱刷分
+                if abs(float(_rating) - skin_rate['rating']) <= 32:
+                    # 计算分数
+                    point = (skin_rate['rating'] + float(_rating)) / 2
+                else:  # 差值过大，不计入皮肤平均值
+                    point = skin_rate['rating']
+                    text2 += f"由于您的评分和皮肤平均分差值大于32，所以您的评分不会计入皮肤平均分，但您的评论会进行保留\n"
+
+            # 更新数据库中皮肤评分
+            await ShopRate.update_SkinRate(skin_uuid,S_skin['skin']['displayName'],point)
+            # 用户之前没有评价过，新建键值
+            if msg.author.id not in SkinRateDict['data']:
+                SkinRateDict['data'][msg.author.id] = {}
+            # 设置uuid的键值
+            SkinRateDict['data'][msg.author.id][skin_uuid] = {}
+            SkinRateDict['data'][msg.author.id][skin_uuid]['name'] = S_skin['skin']['displayName']
+            SkinRateDict['data'][msg.author.id][skin_uuid]['cmt'] = comment
+            SkinRateDict['data'][msg.author.id][skin_uuid]['pit'] = point
+            SkinRateDict['data'][msg.author.id][skin_uuid]['time'] = int(time.time()) # 秒级
+            SkinRateDict['data'][msg.author.id][skin_uuid]['msg_id'] = msg.id
+            # 数据库添加该评论
+            await ShopRate.update_UserRate(skin_uuid,SkinRateDict['data'][msg.author.id][skin_uuid],msg.author.id)
+            # 更新用户已评价的皮肤
+            await ShopRate.update_UserCmt(msg.author.id,skin_uuid)
+
+            text1 += f"评价成功！{S_skin['skin']['displayName']}"
+            text2 += f"您的评分：{_rating}\n"
+            text2 += f"皮肤平均分：{point}\n"
+            text2 += f"您的评语：{comment}"
+            # 设置成功并删除list后，再发送提醒事项设置成功的消息
+            await msg.reply(content=text1+"\n"+text2,message_reference=at_text)
+            _log.info(f"[{GetTime()}] [rts] Au:{msg.author.id} {text1} {skin_uuid}")    
         except Exception as result:
             _log.info(f"ERR! [{GetTime()}] rts\n{traceback.format_exc()}")
             await msg.reply(content=f"[rts] 出现错误\n{result}",message_reference=at_text)

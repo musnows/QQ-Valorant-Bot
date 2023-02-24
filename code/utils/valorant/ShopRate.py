@@ -228,6 +228,28 @@ async def query_UserCmt(user_id:str):
     else: # 不存在
         return []
 
+# 更新用户已评价皮肤
+async def update_UserCmt(user_id:str,skin_uuid:str):
+    # 初始化为只有当前皮肤uuid的list
+    skinList = [ skin_uuid ]
+    UserCmt = leancloud.Object.extend('UserCmt')
+    query = UserCmt.query
+    # 先查找是否有userid和平台都相同的obj（如有，直接更新评论、评分、时间）
+    query.equal_to('userId', user_id)
+    query.equal_to('platform','kook')
+    objlist = query.find()
+    if len(objlist)>0: # 有，更新
+        obj = objlist[0]
+        skinList = obj.get('skinList')
+        skinList.append(skin_uuid)
+    else: # 没有，新建
+        obj = UserCmt()
+        obj.set('platform','kook')
+        obj.set('userId',user_id)
+
+    obj.set('skinList',skinList)
+    obj.save() # 保存
+
 # 获取可以购买皮肤的相关信息的text
 async def get_skinlist_rate_text(skinlist:list,user_id:str):
     """Args:
@@ -321,20 +343,21 @@ async def update_UserRate(skin_uuid:str,rate_info:dict,user_id:str):
 
 
 # 更新皮肤评分
-async def update_SkinRate(skin_uuid:str,rating:float):
-    """
-    - True: update rating success
-    - False: skin_uuid not found
-    """
-    query = leancloud.Query('SkinRate')
+async def update_SkinRate(skin_uuid:str,skin_name:str,rating:float):
+    SkinRate = leancloud.Object.extend('SkinRate')
+    query = SkinRate.query
     query.equal_to('skinUuid', skin_uuid)
     objlist = query.find()
     if len(objlist) > 0: # 找到了
-        # 更新评分
-        objlist[0].set('rating',rating)
-        objlist[0].save() # 保存
-        return True
-    return False
+        obj = objlist[0]
+    else:
+        obj = SkinRate()
+        obj.set('skinUuid',skin_uuid)
+        obj.set('skinName',skin_name)
+
+    # 更新评分
+    obj.set('rating',rating)
+    obj.save() # 保存
 
 # 删除皮肤评价（违规言论）
 async def remove_UserRate(skin_uuid:str,user_id:str):
