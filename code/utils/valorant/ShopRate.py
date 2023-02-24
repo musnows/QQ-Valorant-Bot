@@ -76,11 +76,13 @@ async def get_shop_rate_cm(list_shop: dict, user_id: str):
         text = f"{ret['lv']}\n你可以使用「/rate 皮肤名」参与评分哦！"
     else:
         text = f"综合评分 {ret['sum']}，{ret['lv']}\n以下评论来自其他用户，仅供图一乐\n"
+        text+= f"======================"
         # 插入单个皮肤评价
         for t in ret['text_list']:
             text+=t
         # 结语
-        text+=f"可以使用「/rate 皮肤名」参与评分\n或用「/kkn」查看昨日天选之子/丐帮帮主"
+        text+= f"======================"
+        text+=f"用「/rate 皮肤名」参与评分\n用「/kkn」查看昨日天选之子/丐帮帮主"
     # 返回
     return text
 

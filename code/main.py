@@ -269,6 +269,9 @@ class MyClient(botpy.Client):
             # 发现可以直接传图片url，但是sdk的exp里面没有，看来还是得自己看文档
             _log.info(f"[imgUrl] {ret['message']}")
             # img_bytes= await shop_img_load(ret['message'],key=msg.author.id)
+
+            # 7.皮肤评分和评价
+            cm = await ShopRate.get_shop_rate_cm(list_shop, msg.author.id)
             # 发送图片
             shop_using_time = format(time.perf_counter() - start_time, '.2f') # 结束总计时
             await msg.reply(
@@ -546,6 +549,7 @@ class MyClient(botpy.Client):
                 _log.info(f"[LoginStatus] Au:{message.author.id} Command Failed")
                 return
         except Exception as result:
+            _log.info(f"[at_msg] G:{message.guild_id} C:{message.channel_id} Au:{message.author.id} = {message.content}")
             _log.info(traceback.format_exc())
             await message.reply(content=f"[on_at_message_create]\n出现了未知错误，请联系开发者！\n{result}",message_reference=at_text)
 
@@ -574,6 +578,7 @@ class MyClient(botpy.Client):
                     await message.reply(content=f"参数长度不足，请提供皮肤名\n栗子「/rate 皮肤名字」")
                     return
                 # 正常，分离参数
+                content = content[content.find("/rate"):] # 把命令之前的内容给去掉
                 first = content.find(' ') #第一个空格
                 await self.rate_cmd(message,name=content[first+1:],at_text=at_text)
             elif '/rts' in content:
@@ -581,6 +586,7 @@ class MyClient(botpy.Client):
                 if len(content) < 7: # /rts加3个空格 至少会有7个字符
                     await message.reply(content=f"参数长度不足，请检查您的参数\n栗子「/rts 编号 分数 评论」")
                     return
+                content = content[content.find("/rts"):] # 把命令之前的内容给去掉
                 first = content.find(' ') #第1个空格
                 second = content.find(' ',first+1)#第2个空格
                 third = content.rfind(' ')#第3个空格
@@ -593,6 +599,7 @@ class MyClient(botpy.Client):
                         await message.reply(content=f"参数长度不足，请提供账户/密码\b栗子「/login 账户 密码」")
                         return
                     # 正常，分离参数
+                    content = content[content.find("/login"):] # 把命令之前的内容给去掉
                     first = content.find(' ') #第一个空格
                     second = content.rfind(' ')#第二个空格
                     await self.login_cmd(message,account=content[first+1:second],passwd=content[second+1:],at_text=at_text)
@@ -601,6 +608,7 @@ class MyClient(botpy.Client):
                     if len(content) < 5: # /tfa加一个空格 至少会有5个字符
                         await message.reply(content=f"参数长度不足，请提供邮箱验证码\n栗子「/tfa 114514」")
                         return
+                    content = content[content.find("/tfa"):] # 把命令之前的内容给去掉
                     first = content.rfind(' ') #第一个空格
                     await self.tfa_cmd(message,vcode=content[first+1:],at_text=at_text)
                 elif '/shop' in content or '/store' in content:
@@ -612,6 +620,7 @@ class MyClient(botpy.Client):
                 _log.info(f"[LoginStatus] Au:{message.author.id} Command Failed")
                 return
         except Exception as result:
+            _log.info(f"[dm_msg] G:{message.guild_id} C:{message.channel_id} Au:{message.author.id} = {message.content}")
             _log.info(traceback.format_exc())
             await message.reply(content=f"[on_direct_message_create]\n出现了未知错误，请联系开发者！\n{result}",message_reference=at_text)
 
