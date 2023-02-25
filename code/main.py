@@ -13,6 +13,7 @@ from botpy.types.message import Reference
 from utils.FileManage import bot_config,UserTokenDict,UserAuthDict,UserApLog,save_all_file,_log,SkinRateDict,UserRtsDict
 from utils.valorant import Val,ShopApi,ShopRate
 from utils.valorant.EzAuth import EzAuthExp,auth2faWait,auth2fa,authflow,User2faCode
+from utils import BotVip
 from utils.Gtime import GetTime
 from utils.Channel import listenConf
 from utils.Proc import get_proc_info
@@ -274,8 +275,10 @@ class MyClient(botpy.Client):
             # 7.皮肤评分和评价
             cm = await ShopRate.get_shop_rate_cm(list_shop, msg.author.id)
             # 死循环尝试上传
+            i = 0 # 尝试次数
             while True:
                 try:
+                    i+=1 # 尝试次数+1
                     shop_using_time = format(time.perf_counter() - start_time, '.2f')  # 结束总计时
                     await msg.reply(
                         content=f"<@{msg.author.id}>\n玩家「{player_gamename}」的商店\n本次查询耗时：{shop_using_time}s\n\n{cm}",
@@ -285,7 +288,10 @@ class MyClient(botpy.Client):
                 except errors.ServerError as result:
                     # 出现上传图片错误
                     if "download file err" in str(result) or "upload image error" in str(result):
-                        _log.info(f"Au:{msg.author.id} = botpy.errors.ServerError: {result}") # 打印错误信息
+                        if i >= 4: # 尝试超过4次了
+                            raise result # 跳出循环
+                        # 打印错误信息
+                        _log.info(f"[{i}] Au:{msg.author.id} = botpy.errors.ServerError: {result}") 
                         continue # 重试
                     else:# 其他错误，依旧raise
                         raise result
