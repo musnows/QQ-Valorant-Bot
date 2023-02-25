@@ -2,7 +2,7 @@ import json
 import io
 import aiohttp
 from PIL import Image
-from utils.FileManage import bot_config
+from utils.FileManage import bot_config,_log
 
 # 自己的api的root url
 rootUrl = bot_config["val_api_url"]
@@ -69,16 +69,34 @@ async def tfa_code_post(account:str,vcode:str):
 
 # 通过商店皮肤uuid list获取图片
 async def shop_draw_get(list_shop:list,vp='0',rp='0',img_src='',img_ratio='0'):
-    url = rootUrl + "/shop-draw"
-    params = {
-        "token":apiToken,
-        "list_shop": list_shop,
-        "vp":vp,
-        "rp":rp,
-        "img_src": img_src,
-        "img_ratio": img_ratio
-    }
-    async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params) as response:
-                res = json.loads(await response.text())
-    return res
+    # 死循环，出错采用备用api
+    i = 0
+    while True:
+        global rootUrl
+        try:
+            i+=1
+            url = rootUrl + "/shop-draw"
+            params = {
+                "token":apiToken,
+                "list_shop": list_shop,
+                "vp":vp,
+                "rp":rp,
+                "img_src": img_src,
+                "img_ratio": img_ratio
+            }
+            async with aiohttp.ClientSession() as session:
+                    async with session.get(url, params=params) as response:
+                        res = json.loads(await response.text())
+            return res
+        except Exception as result:
+            if i >=3: raise result # 超过3次重试，直接跳出
+            # 没有办法链接到api
+            err_cur = str(result)
+            # 出现aiohttp错误，或者是json解析错误
+            if "Cannot connect to host" in err_cur or "Expecting value: line 1" in err_cur:
+                # 如果rootUrl是不是备用的，那就改成本地（反过来也一样）
+                rootUrl = bot_config["val_api_url"] if rootUrl == bot_config["val_api_url_bak"] else bot_config["val_api_url_bak"]
+                _log.info(f"[ConnectError] {result}")
+                _log.info(f"[rootUrl] swap to {rootUrl}")
+            else:
+                raise result

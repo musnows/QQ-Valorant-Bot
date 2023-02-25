@@ -158,6 +158,11 @@ class MyClient(botpy.Client):
             # 5.发送登录成功的信息
             await msg.reply(content=f"{text}\n{info_text}",message_reference=at_text)
 
+            # 5.1 用于保存cookie的路径, 保存用户登录信息
+            if await BotVip.is_vip(msg.author.id):
+                cookie_path = f"./log/cookie/{msg.author.id}.cke"
+                res_auth._cookie_jar.save(cookie_path)  # 保存
+
             # 6.全部都搞定了，打印登录信息日志
             _log.info(
                 f"[Login] Au:{msg.author.id} - {UserTokenDict[msg.author.id]['GameName']}#{UserTokenDict[msg.author.id]['TagLine']}"
