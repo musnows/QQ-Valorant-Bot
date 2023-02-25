@@ -7,6 +7,7 @@ import os
 import botpy
 from aiohttp import client_exceptions
 
+from botpy import errors
 from botpy.message import Message,DirectMessage
 from botpy.types.message import Reference
 from utils.FileManage import bot_config,UserTokenDict,UserAuthDict,UserApLog,save_all_file,_log,SkinRateDict,UserRtsDict
@@ -264,7 +265,7 @@ class MyClient(botpy.Client):
             # 返回成功
             log_time += f"- [Drawing] {format(time.time() - draw_time,'.4f')} - [Au] {msg.author.id}"
             _log.info(log_time)
-            # 6.一切正常，获取图片bytes
+            # 6.一切正常，获取图片bytes (跳过，采用url传图)
             # https://bot.q.qq.com/wiki/develop/gosdk/api/message/message_format.html#message
             # 发现可以直接传图片url，但是sdk的exp里面没有，看来还是得自己看文档
             _log.info(f"[imgUrl] {ret['message']}")
@@ -272,13 +273,24 @@ class MyClient(botpy.Client):
 
             # 7.皮肤评分和评价
             cm = await ShopRate.get_shop_rate_cm(list_shop, msg.author.id)
-            # 发送图片
-            shop_using_time = format(time.perf_counter() - start_time, '.2f') # 结束总计时
-            await msg.reply(
-                content=f"<@{msg.author.id}>\n玩家「{player_gamename}」的商店\n本次查询耗时：{shop_using_time}s\n\n{cm}",
-                image=ret['message']
-            )
-            # 结束，打印
+            # 死循环尝试上传
+            while True:
+                try:
+                    shop_using_time = format(time.perf_counter() - start_time, '.2f')  # 结束总计时
+                    await msg.reply(
+                        content=f"<@{msg.author.id}>\n玩家「{player_gamename}」的商店\n本次查询耗时：{shop_using_time}s\n\n{cm}",
+                        image=ret['message']
+                    )
+                    break # 走到这里代表reply成功
+                except errors.ServerError as result:
+                    # 出现上传图片错误
+                    if "download file err" in str(result) or "upload image error" in str(result):
+                        _log.info(f"Au:{msg.author.id} = botpy.errors.ServerError: {result}") # 打印错误信息
+                        continue # 重试
+                    else:# 其他错误，依旧raise
+                        raise result
+            
+            # 结束，打印信息
             _log.info(
                 f"[{GetTime()}] Au:{msg.author.id} daily_shop reply success [{shop_using_time}]"
             )
