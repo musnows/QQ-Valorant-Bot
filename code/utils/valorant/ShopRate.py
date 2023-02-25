@@ -41,12 +41,12 @@ async def get_shop_rate(list_shop: dict, user_id: str):
         if rate_count > 0:
             rate_avg = rate_total // rate_count
             #记录当日冠军和屌丝
-            if rate_avg > SkinRateDict["cmp"]["best"]["pit"]:
+            if rate_avg >= SkinRateDict["cmp"]["best"]["pit"]:
                 SkinRateDict["cmp"]["best"]["pit"] = rate_avg
                 SkinRateDict["cmp"]["best"]["skin"] = list_shop
                 SkinRateDict["cmp"]["best"]["kook_id"] = user_id
                 print(f"[shop] update rate-best  Au:{user_id} = {rate_avg}")
-            elif rate_avg < SkinRateDict["cmp"]["worse"]["pit"]:
+            elif rate_avg <= SkinRateDict["cmp"]["worse"]["pit"]:
                 SkinRateDict["cmp"]["worse"]["pit"] = rate_avg
                 SkinRateDict["cmp"]["worse"]["skin"] = list_shop
                 SkinRateDict["cmp"]["worse"]["kook_id"] = user_id
@@ -105,11 +105,11 @@ async def check_shop_rate(user_id: str, list_shop: list):
     if rate_count != 0:
         rate_avg = rate_total // rate_count  #平均分
         #记录冠军和屌丝
-        if rate_avg > SkinRateDict["cmp"]["best"]["pit"]:
+        if rate_avg >= SkinRateDict["cmp"]["best"]["pit"]:
             SkinRateDict["cmp"]["best"]["pit"] = rate_avg
             SkinRateDict["cmp"]["best"]["skin"] = list_shop
             SkinRateDict["cmp"]["best"]["kook_id"] = user_id
-        elif rate_avg < SkinRateDict["cmp"]["worse"]["pit"]:
+        elif rate_avg <= SkinRateDict["cmp"]["worse"]["pit"]:
             SkinRateDict["cmp"]["worse"]["pit"] = rate_avg
             SkinRateDict["cmp"]["worse"]["skin"] = list_shop
             SkinRateDict["cmp"]["worse"]["kook_id"] = user_id
