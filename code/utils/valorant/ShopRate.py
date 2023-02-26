@@ -6,8 +6,19 @@ import traceback
 # 皮肤的评价
 from utils.valorant import Val
 from utils.FileManage import config,SkinRateDict
-leancloud.init(config["leancloud"]["appid"], master_key=config["leancloud"]["master_key"])
-PLATFORM = "qqchannel"
+PLATFORM = config['platform'] # 平台
+
+# 初始化leancloud
+leancloud.init(config["leancloud"]["appid"], config["leancloud"]["appkey"])
+leanUser = leancloud.User() # 登录用户
+leanUser.login(config["leancloud"]["user_name"],config["leancloud"]["user_pwd"])
+# 设置一个leancloud的acl
+leanAcl = leancloud.ACL()
+leanAcl.set_public_read_access(True) # 所有用户可读
+# 设置当前登录用户的的可写权限
+leanAcl.set_write_access(leancloud.User.get_current().id, True)
+# 设置管理员角色写权限
+leanAcl.set_role_write_access(leancloud.Role('admin'), True)
 
 # 获取皮肤评价的信息
 async def get_shop_rate(list_shop: dict, user_id: str):
@@ -158,20 +169,17 @@ async def update_ShopCmp():
         user_id = SkinRateDict["kkn"]["worse"]["kook_id"]
         for i in objlist:
             if(i.get('best')): # 是最佳 
-                if SkinRateDict["kkn"]["best"]["pit"] <= i.get('rating'): 
-                    continue # 当前用户分数小于数据库中的,不更新
                 # 设置值
                 rate_avg = SkinRateDict["kkn"]["best"]["pit"]
                 list_shop = SkinRateDict["kkn"]["best"]["skin"]
                 user_id = SkinRateDict["kkn"]["best"]["kook_id"]
-            elif(SkinRateDict["kkn"]["worse"]["pit"] >= i.get('rating')): # 是最差，判断分数
-                continue # 如果本地用户好于数据库记录，不更新
             
             # 更新对象并保存
             i.set('userId',user_id)
             i.set('skinList',list_shop)
             i.set('rating',rate_avg)
             i.set('platform',PLATFORM)
+            i.set_acl(leanAcl)
             i.save()
             print(f"[update_shop_cmp] saving best:{i.get('best')}")
     except:
@@ -249,6 +257,7 @@ async def update_UserCmt(user_id:str,skin_uuid:str):
         obj.set('userId',user_id)
 
     obj.set('skinList',skinList)
+    obj.set_acl(leanAcl)
     obj.save() # 保存
 
 # 获取可以购买皮肤的相关信息的text
@@ -340,6 +349,7 @@ async def update_UserRate(skin_uuid:str,rate_info:dict,user_id:str):
     obj.set('rating',rate_info['pit'])
     obj.set('rateAt',rate_info['time'])
     obj.set('msgId',rate_info['msg_id'])
+    obj.set_acl(leanAcl)
     obj.save() # 保存
 
 

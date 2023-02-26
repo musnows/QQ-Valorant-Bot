@@ -262,10 +262,10 @@ class MyClient(botpy.Client):
             timeout = time.strftime("%H:%M:%S", time.gmtime(timeout))  # 将秒数转为标准时间
             log_time += f"[Api.shop] {format(time.time()-shop_api_time,'.4f')} "
             # 4.api获取用户vp/rp
-            vrDict = await Val.fetch_vp_rp_dict(userdict)
+            # vrDict = await Val.fetch_vp_rp_dict(userdict)
             # 5.请求shop-draw接口，获取返回值
             draw_time = time.time() # 开始画图计时
-            ret = await ShopApi.shop_draw_get(list_shop=list_shop,vp=vrDict['vp'],rp=vrDict['rp'])
+            ret = await ShopApi.shop_draw_get(list_shop=list_shop,img_ratio="1")
             if ret['code']: # 出现错误
                 raise Exception(f"shop-draw err! {ret}")
             # 返回成功
