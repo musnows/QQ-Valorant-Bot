@@ -1,0 +1,22 @@
+{
+    "bot": {
+        "appid": "机器人appid",
+        "token": "机器人token",
+        "master_id": "机器人作者id",
+        "val_api_url": "https://val.musnow.top/api",
+        "val_api_token": "val-api token，获取请加入kook频道（https://kook.top/gpbTwZ）",
+        "val_api_url_bak": "https://val1.musnow.top/api"
+    },
+    "guild": {
+        "此配置项参考README":[]
+    },
+    "leancloud":{
+        "appid":"leancloud数据库appid",
+        "master_key":"leancloud数据库master_key(未使用)",
+        "appkey":"leancloud数据库appkey",
+        "user_name":"leancloud数据库内嵌用户名",
+        "user_pwd":"leancloud数据库内嵌用户密码",
+        "info":"更多信息见 https://github.com/Valorant-Shop-CN/Kook-Valorant-Bot/blob/develop/docs/leancloud.md"
+    },
+    "platform":"qqchannel"
+}

@@ -1,7 +1,7 @@
 *.log*
 *.out
 __pycache__/
-config/
+config.json
 log/
 # ln -s main.py
 qqbot.py

@@ -11,9 +11,13 @@
 
 
 
+
+
+
 ## 1.当前支持的命令
 
-目前为初始版本，调用 [kook-valorant-bot](https://github.com/musnows/Kook-Valorant-Bot) 的画图Api移植而来
+目前为初始版本，调用 [kook-valorant-bot](https://github.com/musnows/Kook-Valorant-Bot) 的画图Api移植而来; 
+
 
 | Cmd        | Function                                                     |
 | --------------- | ------------------------------------------------------------ |
@@ -36,7 +40,9 @@ BOT采用官方提供的 [Python sdk](https://github.com/tencent-connect/botpy)
 ```
 pip install qq-botpy
 ```
-sdk使用示例请查看官方git仓库中的的example
+sdk使用示例请查看官方git仓库 [qq-botpy](https://github.com/tencent-connect/botpy) 中的的example
+
+拳头cookie重登依赖于 [floxay/python-riot-auth](https://github.com/floxay/python-riot-auth)
 
 ### 2.1 config
 
@@ -70,6 +76,8 @@ sdk使用示例请查看官方git仓库中的的example
 }
 ```
 
+更多 config 文件的字段，可直接查看示例文件 [config.exp.json](./code/config/config.exp.json)
+
 ### 2.2 log
 
 Bot运行时需要多个依赖项文件，完整的文件列表详见 [FileManage](./code/utils/FileManage.py)
@@ -83,7 +91,7 @@ Bot运行时需要多个依赖项文件，完整的文件列表详见 [FileManag
 }
 ```
 
-其余需要的文件均和kook机器人需要的文件同名，参考 [log.example](https://github.com/musnows/Kook-Valorant-Bot/tree/develop/docs/log.example)
+其余需要的文件均和kook机器人需要的文件同名，参考 [docs/log.example](https://github.com/musnows/Kook-Valorant-Bot/tree/develop/docs/log.example)
 
 
 ### 支持本项目😘
