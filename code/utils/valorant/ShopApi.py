@@ -1,6 +1,6 @@
 import json
 import io
-import aiohttp
+import aiohttp,copy
 from PIL import Image
 from utils.FileManage import bot_config,_log
 
@@ -71,11 +71,12 @@ async def tfa_code_post(account:str,vcode:str):
 async def shop_draw_get(list_shop:list,vp='0',rp='0',img_src='',img_ratio='0'):
     # 死循环，出错采用备用api
     i = 0
+    global rootUrl
+    rUrl = copy.deepcopy(rootUrl)
     while True:
-        global rootUrl
         try:
             i+=1
-            url = rootUrl + "/shop-draw"
+            url = rUrl + "/shop-draw"
             params = {
                 "token":apiToken,
                 "list_shop": list_shop,
@@ -95,8 +96,20 @@ async def shop_draw_get(list_shop:list,vp='0',rp='0',img_src='',img_ratio='0'):
             # 出现aiohttp错误，或者是json解析错误
             if "Cannot connect to host" in err_cur or "Expecting value: line 1" in err_cur:
                 # 如果rootUrl是不是备用的，那就改成本地（反过来也一样）
-                rootUrl = bot_config["val_api_url"] if rootUrl == bot_config["val_api_url_bak"] else bot_config["val_api_url_bak"]
-                _log.info(f"[ConnectError] {result}")
-                _log.info(f"[rootUrl] swap to {rootUrl}")
+                rUrl = bot_config["val_api_url"] if rUrl == bot_config["val_api_url_bak"] else bot_config["val_api_url_bak"]
+                _log.info(f"[ConnectError] {result} - [rootUrl] swap to {rUrl}")
             else:
                 raise result
+            
+# 早八更新比较
+import requests
+def shop_cmp_post(best:dict,worse:dict,platform:str='qqchannel'):
+    url = rootUrl + "/shop-cmp"
+    params = {
+        "token":apiToken,
+        "best":best,
+        "worse":worse,
+        "platform":platform
+    }
+    res = requests.post(url,json=params) # 请求api
+    return res

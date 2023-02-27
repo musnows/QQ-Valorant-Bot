@@ -6,6 +6,7 @@ import os
 
 import botpy
 from aiohttp import client_exceptions
+from apscheduler.schedulers.background import BackgroundScheduler
 
 from botpy import errors
 from botpy.message import Message,DirectMessage
@@ -654,12 +655,35 @@ def save_file_task():
         save_all_file()
         time.sleep(300)#执行一次，睡5分钟
 
+# 更新任务
+import copy
+def shop_cmp_post_task():
+    # 清空已有数据
+    SkinRateDict["kkn"] = copy.deepcopy(SkinRateDict["cmp"])
+    SkinRateDict["cmp"]["best"]["list_shop"] = list()
+    SkinRateDict["cmp"]["best"]["rating"] = 0
+    SkinRateDict["cmp"]["worse"]["list_shop"] = list()
+    SkinRateDict["cmp"]["worse"]["rating"] = 100
+    # 更新到db
+    ret = ShopApi.shop_cmp_post(SkinRateDict["kkn"]["best"],SkinRateDict["kkn"]["worse"])
+    _log.info(f"[ShopCmp.TASK] {ret.json()}")
+
+# 更新商店比较的task
+def update_ShopCmt_task():
+    # 创建调度器BackgroundScheduler，不会阻塞线程
+    scheduler = BackgroundScheduler(timezone='Asia/Shanghai')
+    # 在每天早上8点1分执行
+    scheduler.add_job(shop_cmp_post_task, 'cron',hour='8',minute='1',id='update_ShopCmt_task')
+    scheduler.start()
+
 if __name__ == "__main__":
     # 通过kwargs，设置需要监听的事件通道
     _log.info(f"[BOT.START] start at {GetTime()}")
     # 实现一个保存所有文件的task（死循环
     threading.Thread(target=save_file_task).start()
     _log.info(f"[BOT.START] save_all_file task start {GetTime()}")
+    update_ShopCmt_task() # 早八商店评价更新
+    _log.info(f"[BOT.START] update_ShopCmt task start {GetTime()}")
     # 运行bot
     intents = botpy.Intents(public_guild_messages=True,direct_message=True)
     client = MyClient(intents=intents)
