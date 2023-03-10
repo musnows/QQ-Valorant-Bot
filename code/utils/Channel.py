@@ -1,4 +1,4 @@
-from utils.FileManage import guild_config
+from .file.Files import guild_config
 # 配置频道，只有启用的频道才能获取信息
 # 如果服务器不在文件内，则代表该服务器所有频道都可以使用
 class listenConf:
