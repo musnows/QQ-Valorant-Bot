@@ -4,6 +4,7 @@ __all__ = (
     "MultifactorError",
     "WaitOvertimeError",
     "RatelimitError",
+    "InitNotFinishError",
     "UnkownError"
 )
 
@@ -28,6 +29,9 @@ class RatelimitError(EzAuthError):
 
 class MultifactorError(EzAuthError):
     """Error related to multi-factor authentication."""
+
+class InitNotFinishError(EzAuthError):
+    """Error related to use before init EzAuth self value."""
 
 
 class WaitOvertimeError(EzAuthError):

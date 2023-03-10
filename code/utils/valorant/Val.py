@@ -4,9 +4,9 @@ import aiohttp
 import time
 
 # 预加载文件
-from utils.FileManage import ValBundleList, ValItersList, ValPriceList, ValSkinList
+from .EzAuth import X_RIOT_CLIENTVERSION,X_RIOT_CLIENTVPLATFROM,RiotUserToken
+from ..file.Files import ValItersList, ValPriceList, ValSkinList
 SKIN_ICON_ERR = "https://img.kookapp.cn/assets/2023-02/ekwdy7PiQC0e803m.png"
-X_RIOT_CLIENTVERSION = "release-06.01-shipping-8-820493" 
 
 # 检测登录状态
 class LoginStatus:
@@ -66,22 +66,23 @@ loginStat = LoginStatus()
 
 
 #从list中获取价格
-def fetch_item_price_bylist(item_id):
+def fetch_item_price_bylist(item_id) -> dict:
     for item in ValPriceList['Offers']:  #遍历查找指定uuid
         if item_id == item['OfferID']:
             return item
-
+    return {}
 
 #从list中获取等级(这个需要手动更新)
-def fetch_item_iters_bylist(iter_id):
+def fetch_item_iters_bylist(iter_id) -> dict:
+    res = {}
     for iter in ValItersList['data']:  #遍历查找指定uuid
         if iter_id == iter['uuid']:
             res = {'data': iter}  #所以要手动创建一个带data的dict作为返回值
-            return res
+    return res
 
 
 #从list中获取皮肤
-def fetch_skin_bylist(item_id):
+def fetch_skin_bylist(item_id) -> dict: 
     res = {}  #下面我们要操作的是获取通行证的皮肤，但是因为遍历的时候已经跳过data了，返回的时候就不好返回
     for item in ValSkinList['data']:  #遍历查找指定uuid
         if item_id == item['levels'][0]['uuid']:
@@ -95,11 +96,11 @@ def fetch_skin_bylist(item_id):
                 # 没找到，替换成err图片
                 res['data']['displayIcon'] = SKIN_ICON_ERR
             
-            return res
+    return res
 
 
 #从list中，通过皮肤名字获取皮肤列表
-def fetch_skin_list_byname(name):
+def fetch_skin_list_byname(name) ->list[dict]:
     wplist = list()  #包含该名字的皮肤list
     for skin in ValSkinList['data']:
         if name in skin['displayName']:
@@ -109,15 +110,16 @@ def fetch_skin_list_byname(name):
 
 
 #从list中通过皮肤lv0uuid获取皮肤等级
-def fetch_skin_iters_bylist(item_id):
+def fetch_skin_iters_bylist(item_id) -> dict:
+    res_iters = {}
     for it in ValSkinList['data']:
         if it['levels'][0]['uuid'] == item_id:
             res_iters = fetch_item_iters_bylist(it['contentTierUuid'])
-            return res_iters
+    return res_iters
 
 
 # 用名字查询捆绑包包含什么枪
-async def fetch_bundle_weapen_byname(name):
+async def fetch_bundle_weapen_byname(name)->list[dict]:
     # 捆绑包的所有皮肤
     WeapenList = list()
     for skin in ValSkinList['data']:
@@ -135,13 +137,13 @@ async def fetch_bundle_weapen_byname(name):
 
 
 #获取用户游戏id(从使用对象修改成使用文件中的内容)
-async def fetch_user_gameID(auth):
+async def fetch_user_gameID(ru:RiotUserToken) -> dict:
     url = "https://pd.ap.a.pvp.net/name-service/v2/players"
-    payload = json.dumps([auth['auth_user_id']])
+    payload = json.dumps([ru.user_id])
     headers = {
         "Content-Type": "application/json",
-        "X-Riot-Entitlements-JWT": auth['entitlements_token'],
-        "Authorization": "Bearer " + auth['access_token']
+        "X-Riot-Entitlements-JWT": ru.entitlements_token,
+        "Authorization": "Bearer " + ru.access_token
     }
     async with aiohttp.ClientSession() as session:
         async with session.put(url, headers=headers, data=payload) as response:
@@ -150,12 +152,12 @@ async def fetch_user_gameID(auth):
 
 
 # 获取每日商店
-async def fetch_daily_shop(u):
-    url = "https://pd.ap.a.pvp.net/store/v2/storefront/" + u['auth_user_id']
+async def fetch_daily_shop(ru:RiotUserToken)-> dict:
+    url = "https://pd.ap.a.pvp.net/store/v2/storefront/" + ru.user_id
     headers = {
         "Content-Type": "application/json",
-        "X-Riot-Entitlements-JWT": u['entitlements_token'],
-        "Authorization": "Bearer " + u['access_token']
+        "X-Riot-Entitlements-JWT": ru.entitlements_token,
+        "Authorization": "Bearer " + ru.access_token
     }
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as response:
@@ -164,12 +166,12 @@ async def fetch_daily_shop(u):
 
 
 # Api获取玩家的vp和r点
-async def fetch_valorant_point(u):
-    url = "https://pd.ap.a.pvp.net/store/v1/wallet/" + u['auth_user_id']
+async def fetch_valorant_point(ru:RiotUserToken)-> dict:
+    url = "https://pd.ap.a.pvp.net/store/v1/wallet/" + ru.user_id
     headers = {
         "Content-Type": "application/json",
-        "X-Riot-Entitlements-JWT": u['entitlements_token'],
-        "Authorization": "Bearer " + u['access_token']
+        "X-Riot-Entitlements-JWT": ru.entitlements_token,
+        "Authorization": "Bearer " + ru.access_token
     }
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as response:
@@ -178,22 +180,20 @@ async def fetch_valorant_point(u):
 
 
 # 获取vp和r点的dict
-async def fetch_vp_rp_dict(u):
-    """{'vp': vp, 'rp': rp}
-    """
-    resp = await fetch_valorant_point(u)
+async def fetch_vp_rp_dict(ru:RiotUserToken)-> dict[str,int]:
+    resp = await fetch_valorant_point(ru)
     vp = resp["Balances"]["85ad13f7-3d1b-5128-9eb2-7cd8ee0b5741"]  #vp
     rp = resp["Balances"]["e59aa87c-4cbf-517a-5983-6e81511be9b7"]  #R点
     return {'vp': vp, 'rp': rp}
 
 
 # 获取商品价格（所有）
-async def fetch_item_price_all(u):
+async def fetch_item_price_all(ru:RiotUserToken)-> dict:
     url = "https://pd.ap.a.pvp.net/store/v1/offers/"
     headers = {
         "Content-Type": "application/json",
-        "X-Riot-Entitlements-JWT": u['entitlements_token'],
-        "Authorization": "Bearer " + u['access_token']
+        "X-Riot-Entitlements-JWT": ru.entitlements_token,
+        "Authorization": "Bearer " + ru.access_token
     }
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as response:
@@ -203,8 +203,8 @@ async def fetch_item_price_all(u):
 
 
 # 获取商品价格（用uuid获取单个价格）
-async def fetch_item_price_uuid(u, item_id: str):
-    res = await fetch_item_price_all(u)  #获取所有价格
+async def fetch_item_price_uuid(ru:RiotUserToken, item_id: str)-> str:
+    res = await fetch_item_price_all(ru)  #获取所有价格
 
     for item in res['Offers']:  #遍历查找指定uuid
         if item_id == item['OfferID']:
@@ -214,7 +214,7 @@ async def fetch_item_price_uuid(u, item_id: str):
 
 
 # 获取皮肤等级（史诗/传说）
-async def fetch_item_iters(iters_id: str):
+async def fetch_item_iters(iters_id: str)-> dict:
     url = "https://valorant-api.com/v1/contenttiers/" + iters_id
     headers = {'Connection': 'close'}
     params = {"language": "zh-TW"}
@@ -226,7 +226,7 @@ async def fetch_item_iters(iters_id: str):
 
 
 # 获取所有皮肤
-async def fetch_skins_all():
+async def fetch_skins_all()->dict:
     url = "https://valorant-api.com/v1/weapons/skins"
     headers = {'Connection': 'close'}
     params = {"language": "zh-TW"}
@@ -238,7 +238,7 @@ async def fetch_skins_all():
 
 
 # 获取所有皮肤捆绑包
-async def fetch_bundles_all():
+async def fetch_bundles_all()->dict:
     url = "https://valorant-api.com/v1/bundles"
     headers = {'Connection': 'close'}
     params = {"language": "zh-TW"}
@@ -250,12 +250,12 @@ async def fetch_bundles_all():
 
 
 # 获取获取玩家当前装备的卡面和称号
-async def fetch_player_loadout(u):
-    url = f"https://pd.ap.a.pvp.net/personalization/v2/players/{u['auth_user_id']}/playerloadout"
+async def fetch_player_loadout(ru:RiotUserToken)->dict:
+    url = f"https://pd.ap.a.pvp.net/personalization/v2/players/{ru.user_id}/playerloadout"
     headers = {
         "Content-Type": "application/json",
-        "X-Riot-Entitlements-JWT": u['entitlements_token'],
-        "Authorization": "Bearer " + u['access_token'],
+        "X-Riot-Entitlements-JWT": ru.entitlements_token,
+        "Authorization": "Bearer " + ru.access_token,
         'Connection': 'close'
     }
     async with aiohttp.ClientSession() as session:
@@ -266,16 +266,14 @@ async def fetch_player_loadout(u):
 
 
 # 获取合约（任务）进度
-# client version from https://valorant-api.com/v1/version
-async def fetch_player_contract(u):
+async def fetch_player_contract(ru:RiotUserToken)->dict:
     #url="https://pd.ap.a.pvp.net/contract-definitions/v2/definitions/story"
-    url = f"https://pd.ap.a.pvp.net/contracts/v1/contracts/" + u['auth_user_id']
+    url = f"https://pd.ap.a.pvp.net/contracts/v1/contracts/" + ru.user_id
     headers = {
         "Content-Type": "application/json",
-        "X-Riot-Entitlements-JWT": u['entitlements_token'],
-        "Authorization": "Bearer " + u['access_token'],
-        "X-Riot-ClientPlatform":
-        "ew0KCSJwbGF0Zm9ybVR5cGUiOiAiUEMiLA0KCSJwbGF0Zm9ybU9TIjogIldpbmRvd3MiLA0KCSJwbGF0Zm9ybU9TVmVyc2lvbiI6ICIxMC4wLjE5MDQyLjEuMjU2LjY0Yml0IiwNCgkicGxhdGZvcm1DaGlwc2V0IjogIlVua25vd24iDQp9",
+        "X-Riot-Entitlements-JWT": ru.entitlements_token,
+        "Authorization": "Bearer " + ru.access_token,
+        "X-Riot-ClientPlatform": X_RIOT_CLIENTVPLATFROM,
         "X-Riot-ClientVersion": X_RIOT_CLIENTVERSION
     }
     async with aiohttp.ClientSession() as session:
@@ -285,12 +283,12 @@ async def fetch_player_contract(u):
     return res
 
 # 获取玩家的等级信息
-async def  fetch_player_level(u):
-    url = "https://pd.ap.a.pvp.net/account-xp/v1/players/"+ u['auth_user_id']
+async def  fetch_player_level(ru:RiotUserToken) -> dict:
+    url = "https://pd.ap.a.pvp.net/account-xp/v1/players/"+ ru.user_id
     headers = {
         "Content-Type": "application/json",
-        "X-Riot-Entitlements-JWT": u['entitlements_token'],
-        "Authorization": "Bearer " + u['access_token'],
+        "X-Riot-Entitlements-JWT": ru.entitlements_token,
+        "Authorization": "Bearer " + ru.access_token,
     }
     async with aiohttp.ClientSession() as session:
             async with session.get(url, headers=headers) as response:
@@ -299,7 +297,7 @@ async def  fetch_player_level(u):
     return res
 
 # 获取玩家当前通行证情况，uuid
-async def fetch_contract_uuid(id):
+async def fetch_contract_uuid(id:str) -> dict:
     url = "https://valorant-api.com/v1/contracts/" + id
     headers = {'Connection': 'close'}
     params = {"language": "zh-TW"}
@@ -311,7 +309,7 @@ async def fetch_contract_uuid(id):
 
 
 # 获取玩家卡面，uuid
-async def fetch_playercard_uuid(id):
+async def fetch_playercard_uuid(id:str)-> dict:
     url = "https://valorant-api.com/v1/playercards/" + id
     headers = {'Connection': 'close'}
     params = {"language": "zh-TW"}
@@ -323,7 +321,7 @@ async def fetch_playercard_uuid(id):
 
 
 # 获取玩家称号，uuid
-async def fetch_title_uuid(id):
+async def fetch_title_uuid(id:str)-> dict:
     url = "https://valorant-api.com/v1/playertitles/" + id
     headers = {'Connection': 'close'}
     params = {"language": "zh-TW"}
@@ -335,7 +333,7 @@ async def fetch_title_uuid(id):
 
 
 # 获取喷漆，uuid
-async def fetch_spary_uuid(id):
+async def fetch_spary_uuid(id:str)-> dict:
     url = "https://valorant-api.com/v1/sprays/" + id
     headers = {'Connection': 'close'}
     params = {"language": "zh-TW"}
@@ -347,7 +345,7 @@ async def fetch_spary_uuid(id):
 
 
 # 获取吊坠，uuid
-async def fetch_buddies_uuid(id):
+async def fetch_buddies_uuid(id:str)->dict:
     url = "https://valorant-api.com/v1/buddies/levels/" + id
     headers = {'Connection': 'close'}
     params = {"language": "zh-TW"}
@@ -359,7 +357,7 @@ async def fetch_buddies_uuid(id):
 
 
 # 获取皮肤，通过lv0的uuid
-async def fetch_skinlevel_uuid(id):
+async def fetch_skinlevel_uuid(id:str)->dict:
     url = f"https://valorant-api.com/v1/weapons/skinlevels/" + id
     headers = {'Connection': 'close'}
     params = {"language": "zh-TW"}

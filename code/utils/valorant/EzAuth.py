@@ -1,23 +1,20 @@
-# code from https://github.com/Prodzify/Riot-auth/blob/main/main.py
 import ssl
+import json
 import time
-import asyncio
-import copy
-import random
 import pandas
 import requests
 from requests.adapters import HTTPAdapter
-from http.cookies import SimpleCookie
 from typing import Any
 from collections import OrderedDict
 from re import compile
 
-from riot_auth import RiotAuth
-from utils.valorant import EzAuthExp
-from utils.FileManage import _log
+import logging
+log = logging.getLogger(__name__)
 
-RiotClient = "RiotClient/62.0.1.4852117.4789131"
-User2faCode = {}
+from . import EzAuthExp
+# get latest version: https://valorant-api.com/v1/version
+X_RIOT_CLIENTVERSION = "RiotClient/63.0.9.4909983.4789131"
+X_RIOT_CLIENTVPLATFROM =  "ew0KCSJwbGF0Zm9ybVR5cGUiOiAiUEMiLA0KCSJwbGF0Zm9ybU9TIjogIldpbmRvd3MiLA0KCSJwbGF0Zm9ybU9TVmVyc2lvbiI6ICIxMC4wLjE5MDQyLjEuMjU2LjY0Yml0IiwNCgkicGxhdGZvcm1DaGlwc2V0IjogIlVua25vd24iDQp9"
 TFA_TIME_LIMIT = 600  # 600s时间限制
 
 CIPHERS = [
@@ -42,22 +39,105 @@ class SSLAdapter(HTTPAdapter):
         return super(SSLAdapter, self).init_poolmanager(*a, **k)
 
 
-class EzAuth:
+class RiotUserToken:
+    """a class contains:
+    riot_user_id, access_token, entitlements_token, region
+    """
+    def __init__(self, user_id: str, access_token: str, entitlements: str, region: str) -> None:
+        self.user_id = user_id
+        self.access_token = access_token
+        self.entitlements_token = entitlements
+        self.region = region
 
-    def __init__(self):
+
+class EzAuth:
+    """a class for getting riot auth token"""
+    def __init__(self) -> None:
         self.session = requests.Session()
         self.session.headers = OrderedDict({
-            "User-Agent": f"{RiotClient} %s (Windows;10;;Professional, x64)",
+            "User-Agent": f"{X_RIOT_CLIENTVERSION} %s (Windows;10;;Professional, x64)",
             "Accept-Language": "en-US,en;q=0.9",
             "Accept": "application/json, text/plain, */*"
         })
         self.session.mount('https://', SSLAdapter())
-        self.is2fa = False # 默认不是2fa用户
+        self.is2fa = False 
+        """is riot account MFA turn-on?"""
+        self.__mfa_start = 0  
+        """2fa start time, default to 0"""
+        self.init_time = 0.0
+        """when auth init? default to 0"""
 
-    def authorize(self, username, password, key):
-        global User2faCode
+    def __set_userinfo(self) -> None:
+        """get and set user_info to self.value"""
+        userinfo = self.get_userinfo()
+        self.user_id = userinfo['sub']
+        self.Name = userinfo['name']
+        self.Tag = userinfo['tag']
+        self.creationdata = userinfo['create_data']
+        self.typeban = userinfo['typeban']
 
-        data = {
+    def __set_region(self) -> None:
+        """get and set account region to `self.Region`"""
+        self.Region_headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'{self.token_type} {self.access_token}'
+        }
+        self.Region = self.get_region(self.Region_headers)
+
+    def __set_access_token(self, data: dict) -> dict[str, str]:
+        """get access_token from response
+        
+        Return: {"access_token": p_data[0], "id_token": p_data[1], "token_type": p_data[2], "expires_in": p_data[3]}
+        """
+        pattern = compile(
+            'access_token=((?:[a-zA-Z]|\d|\.|-|_)*).*id_token=((?:[a-zA-Z]|\d|\.|-|_)*).*token_type=((?:[a-zA-Z]|\d|)*).*expires_in=(\d*)'
+        )
+        p_data = pattern.findall(data['response']['parameters']['uri'])[0]
+        tokens = {"access_token": p_data[0], "id_token": p_data[1], "token_type": p_data[2], "expires_in": p_data[3]}
+        return tokens
+
+    def __set_info(self, tokens: dict) -> None:
+        """auth/reauth success, set entitlements_token, userinfo & region.\n
+        Args:
+        - tokens: return value of __set_access_token()
+        """
+        self.access_token = tokens['access_token']
+        self.id_token = tokens['id_token']
+        self.token_type = tokens['token_type']
+
+        self.base_headers = {
+            "User-Agent": f"{X_RIOT_CLIENTVERSION} %s (Windows;10;;Professional, x64)",
+            "Authorization": f"{self.token_type} {self.access_token}",
+        }
+        self.session.headers.update(self.base_headers)
+
+        self.entitlements_token = self.get_entitlement_token()
+        self.__set_userinfo()
+        self.__set_region()
+        self.init_time = time.time() # get current timestamp
+
+    def is_init(self) -> bool:
+        """get if obj init finished, base on `self.init_time`, which will be set after init
+        - False: init_time==0
+        - True: init_time!=0
+        """
+        if self.init_time == 0:
+            return False
+        return True
+
+    async def authorize(self, username, password) -> bool:
+        """Authenticate using username and password.\n
+        if username & password empty, using cookie reauth\n
+        Return: 
+         - True: authorize success
+         - False: MFA user
+         - if False, using email_verify() to send verify code
+        """
+        if username and password:
+            self.session.cookies.clear()  # not reauth, clear cookie
+
+        token = {"access_token": "", "id_token": "", "token_type": "Bearer", "expires_in": '0'}
+        body = {
             "acr_values": "urn:riot:bronze",
             "claims": "",
             "client_id": "riot-client",
@@ -66,103 +146,97 @@ class EzAuth:
             "response_type": "token id_token",
             "scope": "openid link ban lol_region",
         }
-        data2 = {"language": "en_US", "password": password, "remember": "true", "type": "auth", "username": username}
-        r = self.session.post(url=URLS.AUTH_URL, json=data)
-        r = self.session.put(url=URLS.AUTH_URL, json=data2)
+        r = self.session.post(url=URLS.AUTH_URL, json=body)
         data = r.json()
-        tokens = ["", ""]  # 提前定义，避免下方出错（理论上来说应该走不到下面）
+        resp_type = data["type"]
 
+        if resp_type != "response":  # not reauth
+            body = {"language": "en_US", "password": password, "remember": "true", "type": "auth", "username": username}
+            r = self.session.put(url=URLS.AUTH_URL, json=body)
+            data = r.json()
+
+            if data["type"] == "response":
+                pass
+
+            elif "auth_failure" in r.text:
+                raise EzAuthExp.AuthenticationError("auth_failure, user not exist")
+
+            elif 'rate_limited' in r.text:
+                raise EzAuthExp.RatelimitError("auth_failure, rate_limited")
+
+            # 2fa auth
+            elif 'multifactor' in r.text:
+                log.debug("multifactor user")
+                self.is2fa = True  # is 2fa user
+                self.__mfa_start = time.time()
+                return False
+            else:
+                raise EzAuthExp.UnkownError(r.text)
+
+        # get access_token from response
         if "access_token" in r.text:
-            pattern = compile(
-                'access_token=((?:[a-zA-Z]|\d|\.|-|_)*).*id_token=((?:[a-zA-Z]|\d|\.|-|_)*).*expires_in=(\d*)')
-            data = pattern.findall(data['response']['parameters']['uri'])[0]
-            token = data[0]
-            token_id = data[1]
-            tokens = [token, token_id]
+            token = self.__set_access_token(data)
+            # auth/reauth success
+            self.__set_info(tokens=token)
+        else:
+            log.debug(f"unkown err: {r.text}")
+            raise EzAuthExp.UnkownError(r.text)
 
-        elif "auth_failure" in r.text:
-            User2faCode[key] = {'status': False, 'err': f"[{key}] auth_failure, USER NOT EXIST", 
-                                'start_time': time.time(),'2fa_status':True}
-            raise EzAuthExp.AuthenticationError(User2faCode[key]['err'])
+        return True
 
-        elif 'rate_limited' in r.text:
-            User2faCode[key] = {'status': False, 'err': f"[{key}] auth rate_limited", 'start_time': time.time(),'2fa_status':True}
-            raise EzAuthExp.RatelimitError(User2faCode[key]['err'])
-
-        else:  # 到此处是需要邮箱验证的用户
-            _log.info(f"[EzAuth] k:{key} 2fa user")
-            self.is2fa = True # 是2fa用户
-            User2faCode[key] = {
-                'vcode': '',
-                'status': False,
-                'start_time': time.time(),
-                '2fa_status': False,
-                'err': None
+    async def email_verfiy(self, vcode: str) -> bool:
+        """email_verfiy after trying authorize
+        Return:
+         - True: auth success
+         - False: no need to 2fa
+        """
+        # no need to 2fa
+        if self.__mfa_start == 0:
+            return False
+        # check time
+        if (time.time() - self.__mfa_start) <= TFA_TIME_LIMIT:
+            authdata = {
+                'type': 'multifactor',
+                'code': vcode,
             }
-            # 开始等待用户提供邮箱验证码
-            while (not User2faCode[key]['2fa_status']):
-                if (time.time() - User2faCode[key]['start_time']) > TFA_TIME_LIMIT:
-                    break  # 超过10分钟，以无效处理
-                time.sleep(0.2) # 因为是线程执行操作，不能线程+异步
-            
-            # 再次判断，避免是超时break的
-            if User2faCode[key]['2fa_status']:
-                #需要用户通过命令键入邮箱验证码
-                authdata = {
-                    'type': 'multifactor',
-                    'code': User2faCode[key]['vcode'],
-                }
-                r = self.session.put(url=URLS.AUTH_URL, json=authdata)
-                data = r.json()
-                if "access_token" in r.text:
-                    pattern = compile(
-                        'access_token=((?:[a-zA-Z]|\d|\.|-|_)*).*id_token=((?:[a-zA-Z]|\d|\.|-|_)*).*expires_in=(\d*)')
-                    data = pattern.findall(data['response']['parameters']['uri'])[0]
-                    token = data[0]
-                    token_id = data[1]
-                    tokens = [token, token_id]
+            r = self.session.put(url=URLS.AUTH_URL, json=authdata)
+            data = r.json()
 
-                elif "auth_failure" in r.text:
-                    User2faCode[key]['err'] = f"[{key}] 2fa auth_failue"
-                    raise EzAuthExp.MultifactorError(User2faCode[key]['err'])
-                else: # 大概率是验证码错了
-                    User2faCode[key]['err'] = f"[{key}] auth_failue, maybe wrong 2fa code"
-                    raise EzAuthExp.MultifactorError(User2faCode[key]['err'])
-            else: # 2fa等待超出600s
-                User2faCode[key]['err']=f"[{key}] 2fa wait overtime, wait failed"
-                raise EzAuthExp.WaitOvertimeError(User2faCode[key]['err'])
+            if data["type"] == "response":
+                pass
+            elif "auth_failure" in r.text:
+                raise EzAuthExp.MultifactorError("2fa auth_failue")
+            elif "multifactor_attempt_failed" in r.text:  # verify code err
+                raise EzAuthExp.MultifactorError("2fa auth_failue, multifactor_attempt_failed")
+            else:
+                raise EzAuthExp.MultifactorError("2fa auth_failue, unkown err")
+        else:  # 2fa wait overtime
+            raise EzAuthExp.WaitOvertimeError("2fa wait overtime, wait failed")
 
-        # auth success
-        self.access_token = tokens[0]
-        self.id_token = tokens[1]
+        # get access_token from response
+        if "access_token" in r.text:
+            token = self.__set_access_token(data)
+            # auth/reauth success
+            self.__set_info(tokens=token)
+        else:
+            log.debug(f"unkown err: {r.text}")
+            raise EzAuthExp.UnkownError(r.text)
 
-        self.base_headers = {
-            'User-Agent': f"{RiotClient} %s (Windows;10;;Professional, x64)",
-            'Authorization': f'Bearer {self.access_token}',
-        }
-        self.session.headers.update(self.base_headers)
-        self.cookie = self.session.cookies
+        self.__mfa_start = 0
+        return True
 
-        self.entitlements_token = self.get_entitlement_token()
-        self.emailverifed = self.get_emailverifed()
-
-        userinfo = self.get_userinfo()
-        self.user_id = userinfo['sub']
-        self.Name = userinfo['name']
-        self.Tag = userinfo['tag']
-        self.creationdata = userinfo['create_data']
-        self.typeban = userinfo['typeban']
-        self.Region_headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {self.access_token}'}
-        self.session.headers.update(self.Region_headers)
-        self.Region = self.get_Region()
-        # return self 
-        User2faCode[key] = {
-            'status': True,
-            'auth': self,
-            'err': None,
-            '2fa_status':True
-        }
-        _log.info(f"[EzAuth] k:{key} auth success")
+    async def reauthorize(self,exp_print=True) -> bool:
+        """reauthorize using cookie
+        - True: reauthorize success
+        - False: err ouccur, reauthorize failed
+        - won't print exception if exp_print == False
+        """
+        try:
+            await self.authorize("", "")
+            return True
+        except Exception as result:
+            if exp_print: log.exception(f"Exception in reauthoreize")
+            return False
 
     def get_entitlement_token(self):
         r = self.session.post(URLS.ENTITLEMENT_URL, json={})
@@ -170,6 +244,7 @@ class EzAuth:
         return entitlement
 
     def get_emailverifed(self):
+        """ get if account has emailverifed (not MFA)"""
         r = self.session.get(url=URLS.VERIFED_URL, json={})
         Emailverifed = r.json()["emailVerified"]
         return Emailverifed
@@ -206,17 +281,22 @@ class EzAuth:
                     typeban = "PERMANENT_BAN"
         if data3 == [] or "PBE_LOGIN_TIME_BAN" in data3 or "LEGACY_BAN" in data3:
             typeban = "None"
-        return {'sub':Sub, 'name':Name, 'tag':Tag, 'create_data':Createdat, 'typeban':typeban}
+        return {'sub': Sub, 'name': Name, 'tag': Tag, 'create_data': Createdat, 'typeban': typeban}
 
-    def get_Region(self):
+    def get_region(self, headers) -> str:
+        """headers {'Content-Type': 'application/json', 'Authorization': f'{self.token_type} {self.access_token}'}
+        """
         json = {"id_token": self.id_token}
+        r = self.session.headers.update(headers)
         r = self.session.put('https://riot-geo.pas.si.riotgames.com/pas/v1/product/valorant', json=json)
         data = r.json()
         Region = data['affinities']['live']
         return Region
 
-    def print(self):
-        print()
+    def print(self) -> None:
+        """print self.value
+        """
+        print("=" * 50)
         print(f"Accestoken: {self.access_token}")
         print("-" * 50)
         print(f"Entitlements: {self.entitlements_token}")
@@ -230,96 +310,36 @@ class EzAuth:
         print(f"Createdat: {self.creationdata}")
         print("-" * 50)
         print(f"Bantype: {self.typeban}")
+        print("=" * 50)
 
-    def get_Token(self):
-        userdict = {
-            'auth_user_id': self.user_id,
-            'access_token': self.access_token,
-            'entitlements_token': self.entitlements_token
-        }
-        return userdict
+    def get_riotuser_token(self) -> RiotUserToken:
+        """Return:
+        - RiotUserToken(user_id=self.user_id,
+                            access_token=self.access_token,
+                            entitlements=self.entitlements_token,
+                            region=self.Region)
+        - if is_init==False, raise init not finished err
+        """
+        if self.is_init:
+            ret = RiotUserToken(user_id=self.user_id,
+                                access_token=self.access_token,
+                                entitlements=self.entitlements_token,
+                                region=self.Region)    
+            return ret
+        else:
+            raise EzAuthExp.InitNotFinishError("EzAuth Obj not initialized")
 
-    def get_CookieDict(self):
-        # cookie转换成dict
-        ck_dict = requests.utils.dict_from_cookiejar(self.cookie)
-        return ck_dict
+    def save_cookies(self, path: str='./test.cke') -> None:
+        """dump cookies_dict to path (w+)
+        """
+        cookies = requests.utils.dict_from_cookiejar(self.session.cookies) # type: ignore
+        with open(path, "w+") as f:
+            f.write(json.dumps(cookies))
 
-    async def get_RiotAuth(self):
-        # cookie dict导入到SimpleCookie
-        Scookie = SimpleCookie(self.get_CookieDict())
-        rauth = RiotAuth()
-        # 更新cookie
-        rauth._cookie_jar.update_cookies(Scookie)
-        ret = await rauth.reauthorize()  # 测试登录
-        if ret:
-            return rauth
-        else:  #失败返回None
-            raise EzAuthExp.EzAuthError('EzAuth change to RiotAuth failed')
+    def load_cookies(self, path: str) -> None:
+        """load cookies_dic from path (r)
+        """
+        with open(path, "r") as f:
+            load_cookies = json.loads(f.read())
 
-
-###################################### Riot Auth ######################################################
-
-
-# 获取拳头的token
-# 此部分代码来自 https://github.com/floxay/python-riot-auth
-async def authflow(user: str, passwd: str):
-    CREDS = user, passwd
-    auth = RiotAuth()
-    await auth.authorize(*CREDS)
-    # print(f"Access Token Type: {auth.token_type}\n",f"Access Token: {auth.access_token}\n")
-    # print(f"Entitlements Token: {auth.entitlements_token}\n",f"User ID: {auth.user_id}")
-    return auth
-
-
-# 两步验证的用户
-def auth2fa(user: str, passwd: str, key: str):
-    auth = EzAuth()
-    auth.authorize(user, passwd, key=key)
-
-
-# 轮询检测的等待
-async def auth2faWait(key, msg=None):
-    while True:
-        if key in User2faCode:
-            # 如果2fa_status为假，代表是2fa且账户密码没有问题，需要用户提供vcode
-            if not User2faCode[key]['2fa_status']:
-                _log.info(f"[auth2faWait] k:{key} 2fa Wait")
-                if msg != None:
-                    await msg.reply(content=f"您开启了邮箱双重验证，请使用「/tfa 邮箱码」的方式验证\n栗子：若邮箱验证码为114514，那么您应该键入 「/tfa 114514」")
-
-            # 开始循环检测status状态
-            while (not User2faCode[key]['status']):
-                # 不为none，出现错误
-                if User2faCode[key]['err'] != None:
-                    if 'rate_limited' in User2faCode[key]['err']:
-                        raise EzAuthExp.RatelimitError(User2faCode[key]['err'])
-                    elif 'auth_failure' in User2faCode[key]['err']:
-                        raise EzAuthExp.AuthenticationError(User2faCode[key]['err'])
-                    elif 'overtime' in User2faCode[key]['err']:
-                        del User2faCode[key]
-                        raise EzAuthExp.WaitOvertimeError(User2faCode[key]['err'])
-                    else:
-                        raise EzAuthExp.UnkownError(User2faCode[key]['err'])
-
-                # 睡一会再检测
-                await asyncio.sleep(0.3)
-
-            # 如果退出且为真，代表登录成功了
-            if User2faCode[key]['status']:
-                ret = copy.deepcopy(User2faCode[key])
-                del User2faCode[key]
-                _log.info(f"[auth2faWait] k:{key} Wait success,del key")
-                return ret
-            else: # 走到这里没有被raise，出现了未知错误
-                _log.info(f"[auth2faWait] k:{key} Wait failed, unkown err") 
-                raise EzAuthExp.UnkownError("auth2faWait Failed")
-        # key值不在，睡一会后再看看
-        await asyncio.sleep(0.2)
-
-
-async def Get2faWait_Key():
-    ran = random.randint(1, 9999)
-    while (ran in User2faCode):
-        ran = random.randint(1, 9999)  # 创建一个1-9999的随机值
-    # 直到创建出了一个不在其中的键值
-    return ran
+        self.session.cookies = requests.utils.cookiejar_from_dict(load_cookies) # type: ignore
