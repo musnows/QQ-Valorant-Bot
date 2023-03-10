@@ -6,15 +6,17 @@ import os
 
 import botpy
 from aiohttp import client_exceptions
-from apscheduler.schedulers.background import BackgroundScheduler
 
 from botpy import errors
 from botpy.message import Message,DirectMessage
 from botpy.types.message import Reference
-from utils.FileManage import bot_config,UserTokenDict,UserAuthDict,UserApLog,save_all_file,_log,SkinRateDict,UserRtsDict
-from utils.valorant import Val,ShopApi,ShopRate
-from utils.valorant.EzAuth import EzAuthExp,auth2faWait,auth2fa,authflow,User2faCode
-from utils import BotVip
+
+from utils import BotVip,task
+from utils.file.FileManage import save_all_file,_log
+from utils.file.Files import bot_config,UserTokenDict,UserAuthDict,UserPwdReauth,SkinRateDict,UserRtsDict
+from utils.valorant import Val,Reauth
+from utils.shop import ShopApi,ShopRate
+from utils.valorant.EzAuth import EzAuthExp,EzAuth
 from utils.Gtime import GetTime
 from utils.Channel import listenConf
 from utils.Proc import get_proc_info
@@ -33,93 +35,7 @@ def help_text(bot_id:str):
     text+=f"机器人帮助频道，可在机器人介绍中点击加入！"
     return text
 
-# cookie重新登录
-async def login_reauth(user_id: str):
-    base_print = f"[{GetTime()}] Au:{user_id} = "
-    _log.info(base_print + "auth_token failure,trying reauthorize()")
-    global UserAuthDict,UserTokenDict
-    auth = UserAuthDict[user_id]['auth']
-    #用cookie重新登录,会返回一个bool是否成功
-    ret = await auth.reauthorize()
-    if ret:  #会返回一个bool是否成功,成功了重新赋值
-        UserAuthDict[user_id]['auth'] = auth
-        _log.info(base_print + "reauthorize() Successful!")
-    else:  # cookie重新登录失败
-        _log.info(base_print + "reauthorize() Failed! T-T")  # 失败打印
-        # 有保存账户密码+不是邮箱验证用户
-        if user_id in UserAuthDict['AP'] and (not UserAuthDict[user_id]['2fa']):
-            res_auth = await authflow(UserAuthDict['AP'][user_id]['a'], UserAuthDict['AP'][user_id]['p'])
-            UserAuthDict[user_id]['auth'] = res_auth  # 用账户密码重新登录
-            res_auth._cookie_jar.save(f"./log/cookie/{user_id}.cke")  #保存cookie
-            # 记录使用账户密码重新登录的时间
-            UserApLog[user_id][GetTime()] = UserTokenDict[user_id]['GameName']
-            _log.info(base_print + "authflow() by AP")
-            ret = True
-    # 正好返回auth.reauthorize()的bool
-    return ret
 
-
-# 判断是否需要重新获取token
-async def check_reauth(def_name: str = "", msg = None):
-    """
-    return value:
-     - True: no need to reauthorize / get `user_id` as params & reauhorize success
-     - False: unkown err / reauthorize failed
-    """
-    user_id = "[ERR!]"  # 先给userid赋值，避免下方打印的时候报错（不出意外是会被下面的语句修改的）
-    # 判断传入的类型是不是消息 (公屏，私聊)
-    is_msg = isinstance(msg, Message) or isinstance(msg,DirectMessage)
-    try:
-        # 如果是str就直接用,是msg对象就用id
-        user_id = msg.author.id  if is_msg else msg
-        at_text = f"<@{user_id}>\n"
-        _log.info(f"[Check reauth] Au:{user_id}")
-        # 找键值，获取auth对象
-        auth = UserAuthDict[user_id]['auth']
-        userdict = {
-            'auth_user_id': auth.user_id,
-            'access_token': auth.access_token,
-            'entitlements_token': auth.entitlements_token
-        }
-        # 调用riot api测试cookie是否过期
-        resp = await Val.fetch_valorant_point(userdict)
-        # {'httpStatus': 400, 'errorCode': 'BAD_CLAIMS', 'message': 'Failure validating/decoding RSO Access Token'}
-        # 如果没有这个键，会直接报错进except（代表没有错误）
-        # 如果有这个键，就可以继续执行下面的内容（代表cookie过期了）
-        key_test = resp['httpStatus']
-        # 如果传入的是msg，则提示用户
-        if is_msg:
-            text = f"{at_text}获取「{def_name}」失败！正在尝试重新获取token，您无需操作"
-            await msg.reply(content=f"{text}\n{resp['message']}")
-        # 不管传入的是用户id还是msg，都传user_id进入该函数
-        ret = await login_reauth(user_id)
-        if ret == False and is_msg:  #没有正常返回,重新获取token失败
-            text = f"{at_text}重新获取token失败，请私聊「/login」重新登录\n"
-            await msg.reply(content=f"{text}\nAuto Reauthorize Failed!")
-        # 返回真/假
-        return ret
-    except client_exceptions.ClientResponseError as result:
-        err_str = f"[Check reauth] aiohttp ERR!\n{traceback.format_exc()}"
-        if 'auth.riotgames.com' and '403' in str(result):
-            global Login_Forbidden
-            Login_Forbidden = True
-            err_str += f"[Check reauth] 403 err! set Login_Forbidden = True"
-        elif '404' in str(result):
-            err_str += f"[Check reauth] 404 err! network err, try again"
-        else:
-            err_str += f"[Check reauth] Unkown aiohttp ERR!"
-        # 登陆失败
-        if is_msg: msg.reply(f"{at_text}出现错误！check_reauth:\naiohttp client_exceptions ClientResponseError")
-        _log.info(err_str)
-        return False
-    except Exception as result:
-        if 'httpStatus' in str(result):
-            _log.info(f"[Check reauth] Au:{user_id} No need to reauthorize [{result}]")
-            return True
-        else:
-            if is_msg: msg.reply(f"{at_text}出现错误！check_reauth:\n{result}")
-            _log.info(f"[Check reauth] Unkown ERR!\n{traceback.format_exc()}")
-            return False
 
 # bot main
 class MyClient(botpy.Client):
@@ -130,7 +46,7 @@ class MyClient(botpy.Client):
     # 登录命令
     async def login_cmd(self,msg:Message,account:str,passwd:str,at_text):
         _log.info(f"[login] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id}")
-        global UserAuthDict,UserTokenDict,Login_Forbidden
+        global UserAuthDict,UserTokenDict
         try:
             # 1.检查全局登录速率
             if not Val.loginStat.checkRate(): return
@@ -237,7 +153,7 @@ class MyClient(botpy.Client):
             return
         try:
             # 1.判断是否需要重新reauth
-            reau = await check_reauth("每日商店", msg)
+            reau = await Reauth.check_reauth("每日商店", msg)
             if reau == False: return  # 如果为假说明重新登录失败，直接退出
 
             # 2.重新获取token成功，从dict中获取玩家昵称
@@ -329,7 +245,7 @@ class MyClient(botpy.Client):
         text=" "# 先设置为空串，避免except中报错
         try:
             # 1.检测是否需要重新登录
-            reau = await check_reauth("uinfo", msg)  #重新登录
+            reau = await Reauth.check_reauth("uinfo", msg)  #重新登录
             if reau == False: return  #如果为假说明重新登录失败
             # 2.获取RiotAuth对象
             auth = UserAuthDict[msg.author.id]['auth']
@@ -592,6 +508,7 @@ class MyClient(botpy.Client):
                 _log.info(f"[BOT.KILL] bot off at {GetTime()}\n")
                 os._exit(0)
             elif '/mem' in content and (message.author.id == bot_config['master_id']):
+                _log.info(f"G:{message.guild_id} C:{message.channel_id} Au:{message.author.id} = {message.content}")
                 text = await get_proc_info()
                 await message.reply(content=text,message_reference=at_text)
             elif '/kkn' in content:
@@ -649,42 +566,12 @@ class MyClient(botpy.Client):
             await message.reply(content=f"[on_direct_message_create]\n出现了未知错误，请联系开发者！\n{result}",message_reference=at_text)
 
 
-# 保存所有文件的task
-def save_file_task():
-    while True:
-        save_all_file()
-        time.sleep(300)#执行一次，睡5分钟
-
-# 更新任务
-import copy
-def shop_cmp_post_task():
-    # 清空已有数据
-    SkinRateDict["kkn"] = copy.deepcopy(SkinRateDict["cmp"])
-    SkinRateDict["cmp"]["best"]["list_shop"] = list()
-    SkinRateDict["cmp"]["best"]["rating"] = 0
-    SkinRateDict["cmp"]["worse"]["list_shop"] = list()
-    SkinRateDict["cmp"]["worse"]["rating"] = 100
-    # 更新到db
-    ret = ShopApi.shop_cmp_post(SkinRateDict["kkn"]["best"],SkinRateDict["kkn"]["worse"])
-    _log.info(f"[ShopCmp.TASK] {ret.json()}")
-
-# 更新商店比较的task
-def update_ShopCmt_task():
-    # 创建调度器BackgroundScheduler，不会阻塞线程
-    scheduler = BackgroundScheduler(timezone='Asia/Shanghai')
-    # 在每天早上8点1分执行
-    scheduler.add_job(shop_cmp_post_task, 'cron',hour='8',minute='1',id='update_ShopCmt_task')
-    scheduler.start()
-
 if __name__ == "__main__":
-    # 通过kwargs，设置需要监听的事件通道
     _log.info(f"[BOT.START] start at {GetTime()}")
-    # 实现一个保存所有文件的task（死循环
-    threading.Thread(target=save_file_task).start()
-    _log.info(f"[BOT.START] save_all_file task start {GetTime()}")
-    update_ShopCmt_task() # 早八商店评价更新
-    _log.info(f"[BOT.START] update_ShopCmt task start {GetTime()}")
-    # 运行bot
+    # 运行task
+    task.start(GetTime())
+    # 通过kwargs，设置需要监听的事件通道
     intents = botpy.Intents(public_guild_messages=True,direct_message=True)
     client = MyClient(intents=intents)
+    # 运行bot
     client.run(appid=bot_config["appid"], token=bot_config["token"])
