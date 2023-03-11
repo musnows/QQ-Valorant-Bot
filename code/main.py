@@ -17,7 +17,7 @@ from utils.file.Files import bot_config,UserAuthCache,UserPwdReauth,SkinRateDict
 from utils.valorant import Val,Reauth,AuthCache
 from utils.shop import ShopApi,ShopRate
 from utils.valorant.EzAuth import EzAuthExp,EzAuth
-from utils.Gtime import GetTime
+from utils.Gtime import GetTime,GetTimeFromStamp
 from utils.Channel import listenConf
 from utils.Proc import get_proc_info
 
@@ -174,6 +174,7 @@ class MyClient(botpy.Client):
 
     # 获取商店
     async def shop_cmd(self,msg:Message,index:int,at_text):
+        """获取商店，请保证传入的index为int"""
         _log.info(f"[shop] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
         try:
             # 1.如果用户不在Authdict里面，代表没有登录，直接退出
@@ -254,18 +255,40 @@ class MyClient(botpy.Client):
                 f"[{GetTime()}] Au:{msg.author.id} daily_shop reply success [{shop_using_time}]"
             )
         except Exception as result:
-            err_str = f"[{GetTime()}] shop Au:{msg.author.id}\n{traceback.format_exc()}"
+            _log.exception(f"Exception in shop | Au:{msg.author.id}")
             if "SkinsPanelLayout" in str(result):
-                _log.info(err_str, resp)
+                _log.error(resp)
                 btext = f"KeyError:{result}, please re-login\n如果此问题重复出现，请联系开发者"
                 await msg.reply(content=f"[shop] 出现键值错误\n{btext}",message_reference=at_text)
             if "download file err" in str(result) or "upload image error" in str(result):
-                _log.info(err_str)
                 await msg.reply(content=f"[shop] 出现图片上传错误！这是常见错误，重试即可\n{result}",message_reference=at_text)
             else:
-                _log.info(err_str)
                 await msg.reply(content=f"[shop] 出现未知错误！\n{result}",message_reference=at_text)
 
+    async def login_list_cmd(self,msg:Message,at_text=""):
+        """发送已登录账户列表"""
+        _log.info(f"[login-l] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
+        try:
+            retlist = await AuthCache.get_auth_object("qqbot",msg.author.id)
+            if not retlist:
+                await msg.reply(content=f"您尚未登录，请私聊使用「/login 账户 密码」登录",message_reference=at_text)
+                return
+            i=0
+            text ="您当前已登录账户如下\n"
+            text+="====================\n"
+            for ru in retlist:
+                auth = ru["auth"]
+                assert isinstance(auth,EzAuth)
+                text+=f"[{i}] {auth.Name}#{auth.Tag} 登陆于 {GetTimeFromStamp(auth.init_time)}\n"
+                i+=1
+            text+="====================\n"
+            text+="查询商店/夜市时，需要指定账户前的编号，默认为0\n如「/shop 1」查询已登录账户中编号为1的账户"
+
+            await msg.reply(content=text,message_reference=at_text)
+            _log.info(f"Au:{msg.author.id} | login-list reply success")
+        except Exception as result:
+            _log.exception(f"Exception in login-l | Au:{msg.author.id}")
+            await msg.reply(content=f"[login-l] 出现未知错误！\n{result}",message_reference=at_text)
 
     # 获取uinfo
     async def uinfo_cmd(self,msg:Message,at_text=""):
@@ -297,14 +320,14 @@ class MyClient(botpy.Client):
                 if 'data' not in player_title or player_title['status'] != 200:
                     player_title = {
                         'data': {
-                            "displayName": f"未知玩家卡面uuid！\nUnknow uuid: `{resp['Identity']['PlayerTitleID']}`"
+                            "displayName": f"未知玩家称号uuid！\nUnknow uuid: `{resp['Identity']['PlayerTitleID']}`"
                         }
                     }
                     _log.warning(f"[player_title] Au:{msg.author.id} uuid:{resp['Identity']['PlayerTitleID']}")
                 # 3.2 可能遇到全新账户（没打过游戏）的情况,uuid为全0
                 if resp['Guns'] == None or resp['Sprays'] == None:
-                    text =f"玩家「{auth.Name}#{auth.Tag}」拳头api返回值错误，您是否登录了一个全新的账户？\n"
-                    await msg.reply(content=f"<@{msg.author.id}>\n"+text,image=player_card['data']['wideArt'])
+                    text =f"玩家「{auth.Name}#{auth.Tag}」拳头api返回值错误\n您是否登录了未打过游戏的账户？"
+                    await msg.reply(content=f"<@{msg.author.id}>\n"+text)
                     continue
 
                 # 3.3 获取玩家等级
@@ -329,11 +352,12 @@ class MyClient(botpy.Client):
             # 结束
             _log.info(f"[{GetTime()}] Au:{msg.author.id} uinfo reply successful!")
         except Exception as result:
-            _log.info(f"ERR! [{GetTime()}] uinfo\n{traceback.format_exc()}")
+            if "download file err" in str(result) or "upload image error"  in str(result):
+                await msg.reply(content=f"<@{msg.author.id}>\n{text}\n获取玩家卡面图片错误",message_reference=at_text)
+                return
+            _log.exception(f"Exception in uinfo | Au:{msg.author.id}")
             if "Identity" in str(result) or "Balances" in str(result):
                 await msg.reply(content=f"[uinfo] 键值错误，请重新登录\n{result}",message_reference=at_text)
-            elif "download file err" in str(result)  or "upload image error"  in str(result):
-                await msg.reply(content=f"<@{msg.author.id}>\n{text}\n获取玩家卡面图片错误",message_reference=at_text)
             else:
                 await msg.reply(content=f"[uinfo] 未知错误\n{result}",message_reference=at_text)
     
@@ -514,7 +538,7 @@ class MyClient(botpy.Client):
             # 判断是否出现了速率超速或403错误
             elif Val.loginStat.Bool():
                 if '/login' in content or '/tfa' in content:
-                    await message.reply(content=f"为了您的隐私，「/login」和「/tfa」命令仅私聊可用！\nPC端无bot私聊入口，请先在手机端上私聊bot，便可在PC端私聊\n使用方法详见/help命令",message_reference=at_text)
+                    await message.reply(content=f"为了您的隐私，本命令仅私聊可用！\nPC端无bot私聊入口，请先在手机端上私聊bot，便可在PC端私聊\n使用方法详见/help命令",message_reference=at_text)
                 elif '/shop' in content:
                     content = content[content.find("/shop"):] # 把命令之前的内容给去掉
                     index = 0
@@ -578,7 +602,9 @@ class MyClient(botpy.Client):
                 await self.rts_cmd(message,index=int(content[first+1:second]),rating=int(content[second+1:third]),comment=content[third+1:],at_text=at_text)
             # 判断是否出现了速率超速或403错误
             elif Val.loginStat.Bool():
-                if '/login' in content:
+                if '/login-l' in content:
+                    await self.login_list_cmd(message,at_text=at_text)
+                elif '/login' in content:
                     # /login 账户 密码
                     if len(content) < 8: # /login加两个空格 至少会有8个字符，少了有问题
                         await message.reply(content=f"参数长度不足，请提供账户/密码\n栗子「/login 账户 密码」")
