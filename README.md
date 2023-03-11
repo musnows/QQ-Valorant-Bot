@@ -10,22 +10,19 @@
 </div>
 
 
-
-
-
-
 ## 1.当前支持的命令
 
 目前为初始版本，调用 [kook-valorant-bot](https://github.com/musnows/Kook-Valorant-Bot) 的画图Api移植而来; 
 
 
-| Cmd        | Function                                                     |
-| --------------- | ------------------------------------------------------------ |
-| `/ahri` or `/help`         | 帮助命令 |
-| `/login account passwd`         | 登录 riot 账户 |
-| `/tfa verify-code`         | 提供邮箱验证码  |
-| `/shop` or `/store`       | 查询每日商店 |
-| `/uinfo`       | 查询 vp,rp,用户等级 |
+| Cmd        | Function                      | available      |
+| --------------- | ---------------------------------------- | ------ |
+| `/ahri` or `/help`         | 帮助命令 | 公屏私聊可用 |
+| `/login account passwd`         | 登录 riot 账户 | 仅私聊  |
+| `/tfa verify-code`         | 提供邮箱验证码  | 仅私聊  |
+| `/login-l`       | 查看已登录账户 | 仅私聊  |
+| `/shop`       | 查询每日商店 | 公屏私聊可用 |
+| `/uinfo`       | 查询 vp,rp,用户等级 | 公屏私聊可用 |
 
 QQ频道特色，所有命令在公频使用的时候，需要先at机器人
 
@@ -42,7 +39,7 @@ pip install qq-botpy
 ```
 sdk使用示例请查看官方git仓库 [qq-botpy](https://github.com/tencent-connect/botpy) 中的的example
 
-拳头cookie重登依赖于 [floxay/python-riot-auth](https://github.com/floxay/python-riot-auth)
+EzAuth登录类已重写，拳头cookie重登**不再**依赖于 [floxay/python-riot-auth](https://github.com/floxay/python-riot-auth)
 
 ### 2.1 config
 
@@ -53,7 +50,7 @@ sdk使用示例请查看官方git仓库 [qq-botpy](https://github.com/tencent-co
   "bot":{
       "appid": "机器人appid",
       "token": "机器人token",
-      "val_api_url": "https://val.musnow.top/api",
+      "val_api_url": "https://val.musnow.top/api/v2",
       "val_api_token": "val_api_token",
       "master_id":"机器人开发者id"
   },
@@ -93,6 +90,7 @@ Bot运行时需要多个依赖项文件，完整的文件列表详见 [FileManag
 
 其余需要的文件均和kook机器人需要的文件同名，参考 [docs/log.example](https://github.com/musnows/Kook-Valorant-Bot/tree/develop/docs/log.example)
 
+有任何问题，请加入我的kook频道，或阿狸bot的qq频道与我联系。
 
 ### 支持本项目😘
 
