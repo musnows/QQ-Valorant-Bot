@@ -172,30 +172,34 @@ class MyClient(botpy.Client):
         _log.info(f"[help] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
 
     # 获取商店
-    async def shop_cmd(self,msg:Message,at_text):
+    async def shop_cmd(self,msg:Message,index:int,at_text):
         _log.info(f"[shop] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
-        if msg.author.id not in UserAuthCache:
-            await msg.reply(content=f"您尚未登录，请私聊使用「/login 账户 密码」登录",message_reference=at_text)
-            return
         try:
-            # 1.判断是否需要重新reauth
-            reau = await Reauth.check_reauth("每日商店", msg)
-            if reau == False: return  # 如果为假说明重新登录失败，直接退出
+            # 1.如果用户不在Authdict里面，代表没有登录，直接退出
+            if msg.author.id not in UserAuthCache['qqbot']:
+                await msg.reply(content="您尚未登陆！请「私聊」使用「/login 账户 密码」命令进行登录操作",message_reference=at_text) # type:ignore
+                return
 
-            # 2.重新获取token成功，从dict中获取玩家昵称
-            player_gamename = f"{UserTokenDict[msg.author.id]['GameName']}#{UserTokenDict[msg.author.id]['TagLine']}"
+            # 2.判断下标是否合法，默认下标为0
+            # 2.1 下标非法（越界），发送报错信息
+            if index >= len(UserAuthCache['qqbot'][msg.author.id]):
+                await msg.reply(content="您提供的下标超出范围！请检查您的输入，或不提供本参数\n使用「/login-l」查看您当前登录的账户",message_reference=at_text) # type:ignore
+                return 
+            # 2.2 下标合法，获取需要进行操作的Riot用户id
+            riot_user_id = UserAuthCache['qqbot'][msg.author.id][index]
+            # 1.判断是否需要重新reauth
+            auth = await Reauth.check_reauth("每日商店", msg.author.id,riot_user_id,msg)
+            if not auth: return # 如果是none直接退出
+
+            # 2.重新获取token成功，从对象中获取玩家昵称
+            player_gamename = f"{auth.Name}#{auth.Tag}"
             # 2.1 提示正在获取商店
             await msg.reply(content=f"正在获取玩家「{player_gamename}」的每日商店",message_reference=at_text)
 
             # 2.2 计算获取每日商店要多久
             start_time = time.perf_counter()  #开始计时
-            # 2.3 从auth的dict中获取RiotAuth对象
-            auth = UserAuthCache[msg.author.id]['auth']
-            userdict = {
-                'auth_user_id': auth.user_id,
-                'access_token': auth.access_token,
-                'entitlements_token': auth.entitlements_token
-            }
+            # 2.3 从auth的dict中获取RiotAuthToken对象
+            userdict = auth.get_riotuser_token()
             log_time = ""
             shop_api_time = time.time() # api调用计时
             # 3.api获取每日商店
@@ -506,8 +510,17 @@ class MyClient(botpy.Client):
             elif Val.loginStat.Bool():
                 if '/login' in content or '/tfa' in content:
                     await message.reply(content=f"为了您的隐私，「/login」和「/tfa」命令仅私聊可用！\nPC端无bot私聊入口，请先在手机端上私聊bot，便可在PC端私聊\n使用方法详见/help命令",message_reference=at_text)
-                elif '/shop' in content or '/store' in content:
-                    await self.shop_cmd(message,at_text)
+                elif '/shop' in content:
+                    index = 0
+                    # /shop加上一个空格是6个字符
+                    if len(content) > 6:
+                        content = content[content.find("/shop"):] # 把命令之前的内容给去掉
+                        first = content.rfind(' ') # 第一个空格
+                        _log.debug(content[first+1:])
+                        index = int(content[first+1:])
+                        
+                    # 开始获取商店
+                    await self.shop_cmd(message,index=index,at_text=at_text)
                 elif '/uinfo' in content:
                     await self.uinfo_cmd(message,at_text)
             else: # 无法执行登录
@@ -561,7 +574,6 @@ class MyClient(botpy.Client):
             # 判断是否出现了速率超速或403错误
             elif Val.loginStat.Bool():
                 if '/login' in content:
-                    _log.info(content)
                     # /login 账户 密码
                     if len(content) < 8: # /login加两个空格 至少会有8个字符，少了有问题
                         await message.reply(content=f"参数长度不足，请提供账户/密码\n栗子「/login 账户 密码」")
@@ -577,10 +589,19 @@ class MyClient(botpy.Client):
                         await message.reply(content=f"参数长度不足，请提供邮箱验证码\n栗子「/tfa 114514」")
                         return
                     content = content[content.find("/tfa"):] # 把命令之前的内容给去掉
-                    first = content.rfind(' ') #第一个空格
+                    first = content.rfind(' ') # 第一个空格
                     await self.tfa_cmd(message,vcode=content[first+1:],at_text=at_text)
                 elif '/shop' in content or '/store' in content:
-                    await self.shop_cmd(message,at_text=at_text)
+                    index = 0
+                    # /shop加上一个空格是6个字符
+                    if len(content) > 6:
+                        content = content[content.find("/shop"):] # 把命令之前的内容给去掉
+                        first = content.rfind(' ') # 第一个空格
+                        _log.debug(content[first+1:])
+                        index = int(content[first+1:])
+                        
+                    # 开始获取商店
+                    await self.shop_cmd(message,index=index,at_text=at_text)
                 elif '/uinfo' in content:
                     await self.uinfo_cmd(message,at_text=at_text)
             else: # 无法登录

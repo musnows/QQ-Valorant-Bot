@@ -5,7 +5,7 @@ import traceback
 
 # 皮肤的评价
 from ..valorant import Val
-from ..file.Files import config,SkinRateDict
+from ..file.Files import config,SkinRateDict,_log
 PLATFORM = config['platform'] # 平台
 
 # 初始化leancloud
@@ -52,16 +52,16 @@ async def get_shop_rate(list_shop: dict, user_id: str):
         if rate_count > 0:
             rate_avg = rate_total // rate_count
             #记录当日冠军和屌丝
-            if rate_avg >= SkinRateDict["cmp"]["best"]["pit"]:
-                SkinRateDict["cmp"]["best"]["pit"] = rate_avg
+            if rate_avg >= SkinRateDict["cmp"]["best"]["rating"]:
+                SkinRateDict["cmp"]["best"]["rating"] = rate_avg
                 SkinRateDict["cmp"]["best"]["skin"] = list_shop
                 SkinRateDict["cmp"]["best"]["kook_id"] = user_id
-                print(f"[shop] update rate-best  Au:{user_id} = {rate_avg}")
-            elif rate_avg <= SkinRateDict["cmp"]["worse"]["pit"]:
-                SkinRateDict["cmp"]["worse"]["pit"] = rate_avg
+                _log.info(f"[shop] update rate-best  Au:{user_id} = {rate_avg}")
+            elif rate_avg <= SkinRateDict["cmp"]["worse"]["rating"]:
+                SkinRateDict["cmp"]["worse"]["rating"] = rate_avg
                 SkinRateDict["cmp"]["worse"]["skin"] = list_shop
                 SkinRateDict["cmp"]["worse"]["kook_id"] = user_id
-                print(f"[shop] update rate-worse Au:{user_id} = {rate_avg}")
+                _log.info(f"[shop] update rate-worse Au:{user_id} = {rate_avg}")
 
             if rate_avg >= 0 and rate_avg <= 20:
                 rate_lv = "丐帮帮主"
@@ -76,7 +76,7 @@ async def get_shop_rate(list_shop: dict, user_id: str):
 
         return { "sum":rate_avg,"lv":rate_lv,"text_list":rate_text,"count":rate_count }
     except Exception as result:
-        print(f"ERR! [get_shop_rate]\n{traceback.format_exc()}")
+        _log.info(f"ERR! [get_shop_rate]\n{traceback.format_exc()}")
         return { "sum":0,"lv":"皮肤评价数据仍待收集…","text_list":[],"count":0 }
 
 # 获取皮肤评价的卡片
@@ -116,12 +116,12 @@ async def check_shop_rate(user_id: str, list_shop: list):
     if rate_count != 0:
         rate_avg = rate_total // rate_count  #平均分
         #记录冠军和屌丝
-        if rate_avg >= SkinRateDict["cmp"]["best"]["pit"]:
-            SkinRateDict["cmp"]["best"]["pit"] = rate_avg
+        if rate_avg >= SkinRateDict["cmp"]["best"]["rating"]:
+            SkinRateDict["cmp"]["best"]["rating"] = rate_avg
             SkinRateDict["cmp"]["best"]["skin"] = list_shop
             SkinRateDict["cmp"]["best"]["kook_id"] = user_id
-        elif rate_avg <= SkinRateDict["cmp"]["worse"]["pit"]:
-            SkinRateDict["cmp"]["worse"]["pit"] = rate_avg
+        elif rate_avg <= SkinRateDict["cmp"]["worse"]["rating"]:
+            SkinRateDict["cmp"]["worse"]["rating"] = rate_avg
             SkinRateDict["cmp"]["worse"]["skin"] = list_shop
             SkinRateDict["cmp"]["worse"]["kook_id"] = user_id
         return True
@@ -164,13 +164,13 @@ async def update_ShopCmp():
         if len(objlist) == 0:
             raise Exception("leancloud find today err!")
         # 开始更新，先设置为最差
-        rate_avg = SkinRateDict["kkn"]["worse"]["pit"]
+        rate_avg = SkinRateDict["kkn"]["worse"]["rating"]
         list_shop = SkinRateDict["kkn"]["worse"]["skin"]
         user_id = SkinRateDict["kkn"]["worse"]["kook_id"]
         for i in objlist:
             if(i.get('best')): # 是最佳 
                 # 设置值
-                rate_avg = SkinRateDict["kkn"]["best"]["pit"]
+                rate_avg = SkinRateDict["kkn"]["best"]["rating"]
                 list_shop = SkinRateDict["kkn"]["best"]["skin"]
                 user_id = SkinRateDict["kkn"]["best"]["kook_id"]
             
@@ -181,9 +181,9 @@ async def update_ShopCmp():
             i.set('platform',PLATFORM)
             i.set_acl(leanAcl)
             i.save()
-            print(f"[update_shop_cmp] saving best:{i.get('best')}")
+            _log.info(f"[update_shop_cmp] saving best:{i.get('best')}")
     except:
-        print(f"ERR! [update_shop_cmp]\n{traceback.format_exc()}")
+        _log.info(f"ERR! [update_shop_cmp]\n{traceback.format_exc()}")
 
 # 获取昨日最好/最差用户
 async def get_ShopCmp():
@@ -325,7 +325,7 @@ async def update_UserRate(skin_uuid:str,rate_info:dict,user_id:str):
     - rate_info:{
         "name": skin_name,
         "cmt": user comment,
-        "pit": user rating,
+        "rating": user rating,
         "time": time stamp,
         "msg_id: message id
     }
@@ -346,7 +346,7 @@ async def update_UserRate(skin_uuid:str,rate_info:dict,user_id:str):
         obj.set('userId',user_id)
 
     obj.set('comment',rate_info['cmt'])
-    obj.set('rating',rate_info['pit'])
+    obj.set('rating',rate_info['rating'])
     obj.set('rateAt',rate_info['time'])
     obj.set('msgId',rate_info['msg_id'])
     obj.set_acl(leanAcl)

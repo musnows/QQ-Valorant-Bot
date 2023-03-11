@@ -62,7 +62,7 @@ async def login_reauth(user_id: str, riot_user_id: str) -> bool:
 async def check_reauth(def_name: str,
                        user_id: str,
                        riot_user_id: str,
-                       msg: Message | DirectMessage = None) -> bool | dict[str, str]:  # type: ignore
+                       msg: Message | DirectMessage = None) -> None | EzAuth:  # type: ignore
     """Args:
     - def_name: def_name call this def
     - user_id: platfrom user_id
@@ -75,6 +75,7 @@ async def check_reauth(def_name: str,
      - False: unkown err / reauthorize failed
      - send_msg(dict): get `Message` as params & reauhorize success
     """
+    auth = EzAuth()
     try:
         at_text = f"<@{user_id}>\n"
         # 1.通过riot用户id获取对象
@@ -99,25 +100,27 @@ async def check_reauth(def_name: str,
         if not ret and msg:
             text = f"{at_text}重新获取token失败，请私聊「/login」重新登录\n"
             await msg.reply(content=f"{text}\nreauthorize failed")
-            return False
+            return None
+        elif not ret:
+            return None
 
-        return ret  #返回是否成功重登
+        return auth  # 返回auth对象
     # aiohttp网络错误
     except client_exceptions.ClientResponseError as result:
         err_str = f"Au:{user_id} | aiohttp ERR!\n```\n{traceback.format_exc()}\n```\n"
         err_str = client_exceptions_handler(str(result),err_str)
         _log.error(err_str)
         if msg: msg.reply(content=f"{at_text}出现错误！reauth:\naiohttp.client_exceptions.ClientResponseError")
-        return False
+        return None
     # 用户在EzAuth初始化完毕之前调用了其他命令
     except EzAuthExp.InitNotFinishError as result:
         _log.warning(f"Au:{user_id} | EzAuth used before init")
-        return False
+        return None
     except Exception as result:
         if 'httpStatus' in str(result):
             _log.info(f"Au:{user_id} | No need to reauthorize [{result}]")
-            return True
+            return auth
         else:
-            if msg: msg.reply(content=f"{at_text}出现错误！reauth:\n{result}")
-            _log.exception("Unkown Exception occur")
-            return False
+            if msg: msg.reply(content=f"{at_text}出现错误! reauth:\n{result}")
+            _log.exception(f"Unkown Exception | Au:{user_id}")
+            return None
