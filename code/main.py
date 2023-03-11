@@ -13,8 +13,8 @@ from botpy.types.message import Reference
 
 from utils import BotVip,task
 from utils.file.FileManage import save_all_file,_log
-from utils.file.Files import bot_config,UserTokenDict,UserAuthDict,UserPwdReauth,SkinRateDict,UserRtsDict
-from utils.valorant import Val,Reauth
+from utils.file.Files import bot_config,UserTokenDict,UserAuthCache,UserPwdReauth,SkinRateDict,UserRtsDict
+from utils.valorant import Val,Reauth,AuthCache
 from utils.shop import ShopApi,ShopRate
 from utils.valorant.EzAuth import EzAuthExp,EzAuth
 from utils.Gtime import GetTime
@@ -46,30 +46,31 @@ class MyClient(botpy.Client):
     # 登录命令
     async def login_cmd(self,msg:Message,account:str,passwd:str,at_text):
         _log.info(f"[login] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id}")
-        global UserAuthDict,UserTokenDict
+        global UserAuthCache,UserTokenDict
         try:
             # 1.检查全局登录速率
             if not Val.loginStat.checkRate(): return
+            # 1.1 检查已登录账户数量
+            if not AuthCache.check_login_num(msg.author.id):
+                await msg.reply(content="您当前已登录3个拳头账户！",message_reference=at_text)
+                return
+
             # 2.发送开始登录的提示消息
             await msg.reply(content=f"正在获取您的账户token和cookie",message_reference=at_text)
 
             # 3.登录，获取用户的token
-            key = msg.author.id # 用用户id做key
-            # 如果使用异步运行该函数，执行流会被阻塞住等待，应该使用线程来操作
-            th = threading.Thread(target=auth2fa, args=(account, passwd, key))
-            th.start()
-            resw = await auth2faWait(key=key, msg=msg)  # 随后主执行流来这里等待
-            res_auth = await resw['auth'].get_RiotAuth()  # 直接获取RiotAuth对象
-            is2fa = resw['auth'].is2fa # 是否是2fa用户
-            # 4.如果没有抛出异常，那就是完成登录了，设置用户的玩家uuid+昵称
-            UserTokenDict[msg.author.id] = {
-                'auth_user_id': res_auth.user_id,
-                'GameName': resw['auth'].Name,
-                'TagLine': resw['auth'].Tag
-            }
-            UserAuthDict[msg.author.id] = {"auth": res_auth, "2fa": is2fa } # 将对象插入
+            auth = EzAuth()
+            resw = await auth.authorize(account,passwd)
+            # 3.1 将对象插入缓存
+            await AuthCache.cache_auth_object('qqbot',msg.author.id,auth)
+            # 3.2 判断是否是2fa
+            if not resw:
+                await msg.reply(content="该账户开启了邮箱验证，请通过「/tfa 邮箱验证码」进行验证",message_reference=at_text)
+                _log.info(f"login | 2fa user | Au:{msg.author.id}")  # 打印信息
+                return
+
             # 设置基础打印信息
-            text = f"登陆成功！欢迎回来，{UserTokenDict[msg.author.id]['GameName']}#{UserTokenDict[msg.author.id]['TagLine']}"
+            text = f"登陆成功！欢迎回来，{auth.Name}#{auth.Tag}"
             info_text = "当前cookie有效期为2~3天，随后您需要重新登录"
 
             # 5.发送登录成功的信息
@@ -77,12 +78,13 @@ class MyClient(botpy.Client):
 
             # 5.1 用于保存cookie的路径, 保存用户登录信息
             if await BotVip.is_vip(msg.author.id):
-                cookie_path = f"./log/cookie/{msg.author.id}.cke"
-                res_auth._cookie_jar.save(cookie_path)  # 保存
+                cookie_path = f"./log/cookie/{auth.user_id}.cke"
+                auth.save_cookies(cookie_path)  # 保存
+                _log.info(f"Au:{msg.author.id} | save cookie {cookie_path}")
 
             # 6.全部都搞定了，打印登录信息日志
             _log.info(
-                f"[Login] Au:{msg.author.id} - {UserTokenDict[msg.author.id]['GameName']}#{UserTokenDict[msg.author.id]['TagLine']}"
+                f"[Login] Au:{msg.author.id} - {auth.Name}#{auth.Tag}"
             )
         except EzAuthExp.AuthenticationError as result:
             _log.info(f"ERR! [{GetTime()}] login Au:{msg.author.id} - {result}")
@@ -106,13 +108,7 @@ class MyClient(botpy.Client):
             await msg.reply(content=text,message_reference=at_text)
         except client_exceptions.ClientResponseError as result:
             err_str = f"ERR! [{GetTime()}] login Au:{msg.author.id}\n```\n{traceback.format_exc()}\n```\n"
-            if 'auth.riotgames.com' and '403' in str(result):
-                Val.loginStat.setForbidden() # 设置forbidden
-                err_str += f"[Login] 403 err! set Login_Forbidden = True"
-            elif '404' in str(result):
-                err_str += f"[Login] 404 err! network err, try again"
-            else:
-                err_str += f"[Login] Unkown aiohttp ERR!"
+            err_str = Reauth.client_exceptions_handler(str(result),err_str)
             # 打印+发送消息
             _log.info(err_str)
             await msg.reply(content=f"出现了aiohttp请求错误！获取失败，请稍后重试",message_reference=at_text)
@@ -126,17 +122,47 @@ class MyClient(botpy.Client):
     async def tfa_cmd(self,msg:Message,vcode:str,at_text):
         _log.info(f"[tfa] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id}")
         try:
-            global User2faCode
-            key = msg.author.id
-            if key in User2faCode:
-                User2faCode[key]['vcode'] = vcode
-                User2faCode[key]['2fa_status']=True
-                await msg.reply(content=f"邮箱验证码「{vcode}」获取成功，请等待...",message_reference=at_text)
-            else:
+            # 1.判断缓存中是否有该键值
+            auth = AuthCache.get_tfa_auth_object(msg.author.id)
+            if not auth:
                 await msg.reply(content=f"您尚未登录，请先执行「/login 账户 密码」",message_reference=at_text)
+                return
+            # 2.有，auth就是对象
+            assert isinstance(auth,EzAuth)
+            # 2.1 判断是否已经初始化完毕，是则不进行任何操作
+            if auth.is_init():
+                await msg.reply(content=f"玩家「{auth.Name}#{auth.Tag}」已登录，无须执行本命令\n若有问题，请联系开发者",message_reference=at_text)
+                return
+            
+            # 3.需要邮箱验证，发送提示信息
+            await msg.reply(content=f"两步验证码「{vcode}」获取成功。请稍等",message_reference=at_text)
+            # 3.1 验证成功
+            await AuthCache.cache_auth_object("qqbot",msg.author.id,auth)
+            # 3.2 如果是vip用户，则执行下面的代码
+            if await BotVip.is_vip(msg.author.id):
+                cookie_path = f"./log/cookie/{auth.user_id}.cke"
+                auth.save_cookies(cookie_path)  # 保存
+                _log.info(f"Au:{msg.author.id} | save cookie {cookie_path}")
+
+            # 4.登录完毕
+            text = f"登陆成功！欢迎回来，{auth.Name}#{auth.Tag}\n"
+            text+= "当前cookie有效期为2~3天"
+            await msg.reply(content=text,message_reference=at_text)
+
+            _log.info(
+                f"tfa | Au:{msg.author.id} | {auth.Name}#{auth.Tag}"
+            )
+        except EzAuthExp.MultifactorError as result:
+            text = ""
+            if "multifactor_attempt_failed" in str(result):
+                text = "两步验证码错误，请重试"
+            else:
+                text = "邮箱验证错误，请重新login"
+            # 发送消息
+            _log.exception(f"MultifactorError Au:{msg.author.id}")
+            await msg.reply(content=text,message_reference=at_text)
         except Exception as result:
-            text=f"ERR! [{GetTime()}] tfa Au:{msg.author.id}\n{traceback.format_exc()}"
-            _log.info(text)
+            _log.exception(f"tfa Au:{msg.author.id}")
             await msg.reply(content=f"出现错误！tfa\n{result}",message_reference=at_text)
 
     # 帮助命令
@@ -148,7 +174,7 @@ class MyClient(botpy.Client):
     # 获取商店
     async def shop_cmd(self,msg:Message,at_text):
         _log.info(f"[shop] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
-        if msg.author.id not in UserAuthDict:
+        if msg.author.id not in UserAuthCache:
             await msg.reply(content=f"您尚未登录，请私聊使用「/login 账户 密码」登录",message_reference=at_text)
             return
         try:
@@ -164,7 +190,7 @@ class MyClient(botpy.Client):
             # 2.2 计算获取每日商店要多久
             start_time = time.perf_counter()  #开始计时
             # 2.3 从auth的dict中获取RiotAuth对象
-            auth = UserAuthDict[msg.author.id]['auth']
+            auth = UserAuthCache[msg.author.id]['auth']
             userdict = {
                 'auth_user_id': auth.user_id,
                 'access_token': auth.access_token,
@@ -239,7 +265,7 @@ class MyClient(botpy.Client):
     # 获取uinfo
     async def uinfo_cmd(self,msg:Message,at_text=""):
         _log.info(f"[uinfo] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
-        if msg.author.id not in UserAuthDict:
+        if msg.author.id not in UserAuthCache:
             await msg.reply(content=f"您尚未登录，请私聊使用「/login 账户 密码」登录",message_reference=at_text)
             return
         text=" "# 先设置为空串，避免except中报错
@@ -248,7 +274,7 @@ class MyClient(botpy.Client):
             reau = await Reauth.check_reauth("uinfo", msg)  #重新登录
             if reau == False: return  #如果为假说明重新登录失败
             # 2.获取RiotAuth对象
-            auth = UserAuthDict[msg.author.id]['auth']
+            auth = UserAuthCache[msg.author.id]['auth']
             userdict = {
                 'auth_user_id': auth.user_id,
                 'access_token': auth.access_token,
@@ -535,9 +561,10 @@ class MyClient(botpy.Client):
             # 判断是否出现了速率超速或403错误
             elif Val.loginStat.Bool():
                 if '/login' in content:
+                    _log.info(content)
                     # /login 账户 密码
                     if len(content) < 8: # /login加两个空格 至少会有8个字符，少了有问题
-                        await message.reply(content=f"参数长度不足，请提供账户/密码\b栗子「/login 账户 密码」")
+                        await message.reply(content=f"参数长度不足，请提供账户/密码\n栗子「/login 账户 密码」")
                         return
                     # 正常，分离参数
                     content = content[content.find("/login"):] # 把命令之前的内容给去掉

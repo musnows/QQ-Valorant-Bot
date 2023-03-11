@@ -2,16 +2,16 @@ import traceback
 from botpy.message import Message,DirectMessage
 from aiohttp import client_exceptions
 from .EzAuth import EzAuth, EzAuthExp
-from ..file.Files import UserAuthDict,UserPwdReauth,_log
-from .Val import fetch_valorant_point
+from ..file.Files import UserAuthCache,UserPwdReauth,_log
+from .Val import fetch_valorant_point,loginStat
 from .. import Gtime
 
 
 # 检查aiohttp错误的类型
 def client_exceptions_handler(result:str,err_str:str) -> str:
     if 'auth.riotgames.com' and '403' in result:
-        global LoginForbidden
-        LoginForbidden = True
+        global loginStat
+        loginStat.Login_Forbidden = True
         err_str += f"[check_reauth] 403 err! set LoginForbidden = True"
     elif '404' in result:
         err_str += f"[check_reauth] 404 err! network err, try again"
@@ -28,27 +28,27 @@ async def login_reauth(user_id: str, riot_user_id: str) -> bool:
     """
     base_print = f"Au:{user_id} | Riot:{riot_user_id} | "
     _log.info(base_print + "auth_token failure,trying reauthorize()")
-    global UserAuthDict
+    global UserAuthCache
     # 这个函数只负责重登录，所以直接找对应的拳头用户id
-    auth = UserAuthDict['data'][riot_user_id]['auth']
+    auth = UserAuthCache['data'][riot_user_id]['auth']
     assert isinstance(auth, EzAuth)
     #用cookie重新登录,会返回一个bool是否成功
     ret = await auth.reauthorize()
     if ret:  #会返回一个bool是否成功,成功了重新赋值
-        UserAuthDict['data'][riot_user_id]['auth'] = auth
+        UserAuthCache['data'][riot_user_id]['auth'] = auth
         _log.info(base_print + "reauthorize() Successful!")
     else:  # cookie重新登录失败
         _log.info(base_print + "reauthorize() Failed! T-T")  # 失败打印
         # 有保存账户密码+不是邮箱验证用户
-        if riot_user_id in UserAuthDict['acpw'] and (not UserAuthDict[riot_user_id]['2fa']):
+        if riot_user_id in UserAuthCache['acpw'] and (not UserAuthCache[riot_user_id]['2fa']):
             auth = EzAuth()  # 用账户密码重新登录
-            resw = await auth.authorize(UserAuthDict['acpw'][riot_user_id]['a'],
-                                        UserAuthDict['acpw'][riot_user_id]['p'])
+            resw = await auth.authorize(UserAuthCache['acpw'][riot_user_id]['a'],
+                                        UserAuthCache['acpw'][riot_user_id]['p'])
             if not resw['status']:  # 需要邮箱验证，那就直接跳出
                 _log.info(base_print + "authorize() need 2fa, return False")
                 return False
             # 更新auth对象
-            UserAuthDict['data'][riot_user_id]['auth'] = auth
+            UserAuthCache['data'][riot_user_id]['auth'] = auth
             auth.save_cookies(f"./log/cookie/{riot_user_id}.cke")  # 保存cookie
             # 记录使用账户密码重新登录的时间，和对应的账户
             UserPwdReauth[user_id][Gtime.GetTime()] = f"{auth.Name}#{auth.Tag}"
@@ -78,7 +78,7 @@ async def check_reauth(def_name: str,
     try:
         at_text = f"<@{user_id}>\n"
         # 1.通过riot用户id获取对象
-        auth = UserAuthDict['data'][riot_user_id]['auth']
+        auth = UserAuthCache['data'][riot_user_id]['auth']
         assert isinstance(auth, EzAuth)
         # 2.直接从对象中获取user的Token，并尝试获取用户的vp和r点
         riotUser = auth.get_riotuser_token()
