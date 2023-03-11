@@ -40,7 +40,7 @@ async def login_reauth(user_id: str, riot_user_id: str) -> bool:
     else:  # cookie重新登录失败
         _log.info(base_print + "reauthorize() Failed! T-T")  # 失败打印
         # 有保存账户密码+不是邮箱验证用户
-        if riot_user_id in UserAuthCache['acpw'] and (not UserAuthCache[riot_user_id]['2fa']):
+        if riot_user_id in UserAuthCache['acpw'] and (not auth.is2fa):
             auth = EzAuth()  # 用账户密码重新登录
             resw = await auth.authorize(UserAuthCache['acpw'][riot_user_id]['a'],
                                         UserAuthCache['acpw'][riot_user_id]['p'])

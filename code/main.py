@@ -13,7 +13,7 @@ from botpy.types.message import Reference
 
 from utils import BotVip,task
 from utils.file.FileManage import save_all_file,_log
-from utils.file.Files import bot_config,UserTokenDict,UserAuthCache,UserPwdReauth,SkinRateDict,UserRtsDict
+from utils.file.Files import bot_config,UserAuthCache,UserPwdReauth,SkinRateDict,UserRtsDict
 from utils.valorant import Val,Reauth,AuthCache
 from utils.shop import ShopApi,ShopRate
 from utils.valorant.EzAuth import EzAuthExp,EzAuth
@@ -46,12 +46,12 @@ class MyClient(botpy.Client):
     # 登录命令
     async def login_cmd(self,msg:Message,account:str,passwd:str,at_text):
         _log.info(f"[login] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id}")
-        global UserAuthCache,UserTokenDict
+        global UserAuthCache
         try:
             # 1.检查全局登录速率
             if not Val.loginStat.checkRate(): return
             # 1.1 检查已登录账户数量
-            if not AuthCache.check_login_num(msg.author.id):
+            if not await AuthCache.check_login_num(msg.author.id):
                 await msg.reply(content="您当前已登录3个拳头账户！",message_reference=at_text)
                 return
 
@@ -123,7 +123,7 @@ class MyClient(botpy.Client):
         _log.info(f"[tfa] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id}")
         try:
             # 1.判断缓存中是否有该键值
-            auth = AuthCache.get_tfa_auth_object(msg.author.id)
+            auth = await AuthCache.get_tfa_auth_object(msg.author.id)
             if not auth:
                 await msg.reply(content=f"您尚未登录，请先执行「/login 账户 密码」",message_reference=at_text)
                 return
@@ -136,6 +136,7 @@ class MyClient(botpy.Client):
             
             # 3.需要邮箱验证，发送提示信息
             await msg.reply(content=f"两步验证码「{vcode}」获取成功。请稍等",message_reference=at_text)
+            await auth.email_verfiy(vcode)
             # 3.1 验证成功
             await AuthCache.cache_auth_object("qqbot",msg.author.id,auth)
             # 3.2 如果是vip用户，则执行下面的代码
@@ -269,59 +270,63 @@ class MyClient(botpy.Client):
     # 获取uinfo
     async def uinfo_cmd(self,msg:Message,at_text=""):
         _log.info(f"[uinfo] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
-        if msg.author.id not in UserAuthCache:
-            await msg.reply(content=f"您尚未登录，请私聊使用「/login 账户 密码」登录",message_reference=at_text)
-            return
         text=" "# 先设置为空串，避免except中报错
         try:
-            # 1.检测是否需要重新登录
-            reau = await Reauth.check_reauth("uinfo", msg)  #重新登录
-            if reau == False: return  #如果为假说明重新登录失败
-            # 2.获取RiotAuth对象
-            auth = UserAuthCache[msg.author.id]['auth']
-            userdict = {
-                'auth_user_id': auth.user_id,
-                'access_token': auth.access_token,
-                'entitlements_token': auth.entitlements_token
-            }
-            # 3.调用api，获取相关信息
-            resp = await Val.fetch_player_loadout(userdict)  # 获取玩家装备栏
-            player_card = await Val.fetch_playercard_uuid(resp['Identity']['PlayerCardID'])  # 玩家卡面id
-            player_title = await Val.fetch_title_uuid(resp['Identity']['PlayerTitleID'])  # 玩家称号id
-            # 3.1 检测返回值
-            if 'data' not in player_card or player_card['status'] != 200:
-                player_card = {'data': {'wideArt': 'https://img.kookapp.cn/assets/2022-09/PDlf7DcoUH0ck03k.png'}}
-                _log.info(f"ERR![player_card]  Au:{msg.author.id} uuid:{resp['Identity']['PlayerCardID']}")
-            if 'data' not in player_title or player_title['status'] != 200:
-                player_title = {
-                    'data': {
-                        "displayName": f"未知玩家卡面uuid！\nUnknow uuid: `{resp['Identity']['PlayerTitleID']}`"
-                    }
-                }
-                _log.info(f"ERR![player_title] Au:{msg.author.id} uuid:{resp['Identity']['PlayerTitleID']}")
-            # 可能遇到全新账户（没打过游戏）的情况
-            if resp['Guns'] == None or resp['Sprays'] == None:
-                await msg.reply(content=f"拳头api返回值错误，您是否登录了一个全新的账户？",message_reference=at_text)
+            retlist = await AuthCache.get_auth_object("qqbot",msg.author.id)
+            if not retlist:
+                await msg.reply(content=f"您尚未登录，请私聊使用「/login 账户 密码」登录",message_reference=at_text)
                 return
+            text=""
+            # retlist里面是存有对象的dict
+            for ru in retlist:
+                auth = ru["auth"]
+                assert isinstance(auth,EzAuth)
+                # 1.检测是否需要重新登录
+                reau = await Reauth.check_reauth("uinfo", msg.author.id,auth.user_id,msg) #重新登录
+                if not reau: return  #如果为假说明重新登录失败
+                # 2.获取riotuser对象
+                userdict = auth.get_riotuser_token()
+                # 3.调用api，获取相关信息
+                resp = await Val.fetch_player_loadout(userdict)  # 获取玩家装备栏
+                player_card = await Val.fetch_playercard_uuid(resp['Identity']['PlayerCardID'])  # 玩家卡面id
+                player_title = await Val.fetch_title_uuid(resp['Identity']['PlayerTitleID'])  # 玩家称号id
+                # 3.1 检测返回值
+                if 'data' not in player_card or player_card['status'] != 200:
+                    player_card = {'data': {'wideArt': 'https://img.kookapp.cn/assets/2022-09/PDlf7DcoUH0ck03k.png'}}
+                    _log.warning(f"[player_card]  Au:{msg.author.id} uuid:{resp['Identity']['PlayerCardID']}")
+                if 'data' not in player_title or player_title['status'] != 200:
+                    player_title = {
+                        'data': {
+                            "displayName": f"未知玩家卡面uuid！\nUnknow uuid: `{resp['Identity']['PlayerTitleID']}`"
+                        }
+                    }
+                    _log.warning(f"[player_title] Au:{msg.author.id} uuid:{resp['Identity']['PlayerTitleID']}")
+                # 3.2 可能遇到全新账户（没打过游戏）的情况,uuid为全0
+                if resp['Guns'] == None or resp['Sprays'] == None:
+                    text =f"玩家「{auth.Name}#{auth.Tag}」拳头api返回值错误，您是否登录了一个全新的账户？\n"
+                    await msg.reply(content=f"<@{msg.author.id}>\n"+text,image=player_card['data']['wideArt'])
+                    continue
 
-            # 3.2 获取玩家等级
-            resp = await Val.fetch_player_level(userdict)
-            player_level = resp["Progress"]["Level"]     # 玩家等级
-            player_level_xp = resp["Progress"]["XP"]     # 玩家等级经验值
-            last_fwin = resp["LastTimeGrantedFirstWin"]  # 上次首胜时间
-            next_fwin = resp["NextTimeFirstWinAvailable"]# 下次首胜重置
-            # 3.3 获取玩家的vp和r点剩余
-            resp = await Val.fetch_vp_rp_dict(userdict)
+                # 3.3 获取玩家等级
+                resp = await Val.fetch_player_level(userdict)
+                player_level = resp["Progress"]["Level"]     # 玩家等级
+                player_level_xp = resp["Progress"]["XP"]     # 玩家等级经验值
+                last_fwin = resp["LastTimeGrantedFirstWin"]  # 上次首胜时间
+                next_fwin = resp["NextTimeFirstWinAvailable"]# 下次首胜重置
+                # 3.4 获取玩家的vp和r点剩余
+                resp = await Val.fetch_vp_rp_dict(userdict)
 
-            # 4.创建消息str
-            text =f"玩家 {UserTokenDict[msg.author.id]['GameName']}#{UserTokenDict[msg.author.id]['TagLine']} 的个人信息\n"
-            text+= f"玩家称号：" + player_title['data']['displayName'] + "\n"
-            text+= f"玩家等级：{player_level}  |  经验值：{player_level_xp}\n"
-            text+= f"上次首胜：{last_fwin}\n"
-            text+= f"首胜重置：{next_fwin}\n"
-            text+= f"rp：{resp['rp']}  |  vp：{resp['vp']}"
-            # 5.发送消息
-            await msg.reply(content=f"<@{msg.author.id}>\n"+text,image=player_card['data']['wideArt'])
+                # 4.创建消息str
+                text =f"玩家「{auth.Name}#{auth.Tag}」的个人信息\n"
+                text+= f"玩家称号：" + player_title['data']['displayName'] + "\n"
+                text+= f"玩家等级：{player_level}  |  经验值：{player_level_xp}\n"
+                text+= f"上次首胜：{last_fwin}\n"
+                text+= f"首胜重置：{next_fwin}\n"
+                text+= f"rp：{resp['rp']}  |  vp：{resp['vp']}\n\n"
+            
+                # 5.发送消息（因为qq频道每一个消息只能带上一张图片，所以得单独发两条消息
+                await msg.reply(content=f"<@{msg.author.id}>\n"+text,image=player_card['data']['wideArt'])
+            # 结束
             _log.info(f"[{GetTime()}] Au:{msg.author.id} uinfo reply successful!")
         except Exception as result:
             _log.info(f"ERR! [{GetTime()}] uinfo\n{traceback.format_exc()}")
@@ -511,10 +516,10 @@ class MyClient(botpy.Client):
                 if '/login' in content or '/tfa' in content:
                     await message.reply(content=f"为了您的隐私，「/login」和「/tfa」命令仅私聊可用！\nPC端无bot私聊入口，请先在手机端上私聊bot，便可在PC端私聊\n使用方法详见/help命令",message_reference=at_text)
                 elif '/shop' in content:
+                    content = content[content.find("/shop"):] # 把命令之前的内容给去掉
                     index = 0
                     # /shop加上一个空格是6个字符
                     if len(content) > 6:
-                        content = content[content.find("/shop"):] # 把命令之前的内容给去掉
                         first = content.rfind(' ') # 第一个空格
                         _log.debug(content[first+1:])
                         index = int(content[first+1:])
@@ -591,11 +596,11 @@ class MyClient(botpy.Client):
                     content = content[content.find("/tfa"):] # 把命令之前的内容给去掉
                     first = content.rfind(' ') # 第一个空格
                     await self.tfa_cmd(message,vcode=content[first+1:],at_text=at_text)
-                elif '/shop' in content or '/store' in content:
+                elif '/shop' in content:
+                    content = content[content.find("/shop"):] # 把命令之前的内容给去掉
                     index = 0
                     # /shop加上一个空格是6个字符
                     if len(content) > 6:
-                        content = content[content.find("/shop"):] # 把命令之前的内容给去掉
                         first = content.rfind(' ') # 第一个空格
                         _log.debug(content[first+1:])
                         index = int(content[first+1:])

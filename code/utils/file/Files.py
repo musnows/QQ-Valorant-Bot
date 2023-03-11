@@ -11,7 +11,6 @@ ValItersList = FileManage("./log/ValIters.json")  # valorant皮肤等级
 SkinRateDict = FileManage("./log/ValSkinRate.json")  # valorant皮肤评分信息
 
 UserAuthID = FileManage("./log/UserAuthID.json")  # 用户游戏id/uuid，账户密码重登记录
-UserTokenDict = UserAuthID['data']  # riot用户游戏id和uuid
 UserPwdReauth = UserAuthID['ap_log']    # 账户密码重登记录
 UserAuthCache = {'acpw':{},'data':{},'qqbot':{},'tfa':{}} 
 """存放用户的登录class，不需要保存到本地

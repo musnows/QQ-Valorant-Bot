@@ -7,7 +7,7 @@ Auth2faCache = UserAuthCache['tfa']
 LOGIN_LIMITED = 3
 """每个用户只能登录3个账户"""
 
-def check_login_num(user_id:str) -> bool:
+async def check_login_num(user_id:str) -> bool:
     """检查已登录账户的数量
     - False 超出限制
     - True  未超出
