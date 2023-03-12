@@ -21,6 +21,9 @@ from utils.Gtime import GetTime,GetTimeFromStamp
 from utils.Channel import listenConf
 from utils.Proc import get_proc_info
 
+IMG_DRAW = bot_config["img_draw"]
+"""是否进行本地画图"""
+
 # help命令文字
 def help_text(bot_id:str):
     text = "以下为阿狸的的命令列表\n"
@@ -36,8 +39,6 @@ def help_text(bot_id:str):
     text+=f"在公频中使用命令，需要在命令前加上 <@{bot_id}>\n"
     text+=f"机器人帮助频道，可在机器人介绍中点击加入！"
     return text
-
-
 
 # bot main
 class MyClient(botpy.Client):
@@ -215,11 +216,13 @@ class MyClient(botpy.Client):
 
             # 5.请求shop-draw接口，获取返回值
             draw_time = time.time() # 开始画图计时
-            # 5.1 采用kook-bot的api获取图片url
-            ret = await ShopApi.shop_draw_get(list_shop=list_shop,img_ratio="1")
-            # 5.2 采用本地画图
-            # vrDict = await Val.fetch_vp_rp_dict(userdict) # api获取用户vp/rp
-            # ret = await ShopImg.img_draw(list_shop,vrDict['vp'],vrDict['rp'])
+            # 5.1 采用本地画图
+            if IMG_DRAW:
+                vrDict = await Val.fetch_vp_rp_dict(userdict) # api获取用户vp/rp
+                ret = await ShopImg.img_draw(list_shop,vrDict['vp'],vrDict['rp'])
+            # 5.2 采用kook-bot的api获取图片url
+            else: 
+                ret = await ShopApi.shop_draw_get(list_shop=list_shop,img_ratio="1")
 
             # 5.4 code不为0 出现错误
             if ret['code']:
