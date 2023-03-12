@@ -1,10 +1,10 @@
 import json
 import aiohttp,copy
-from ..file.Files import bot_config,_log
+from ..file.Files import api_config,_log
 
 # 自己的api的root url
-rootUrl = bot_config["val_api_url"]
-apiToken = bot_config["val_api_token"]
+rootUrl = api_config["val_api_url"]
+apiToken = api_config["val_api_token"]
 
 # 图片获取器
 async def img_requestor(img_url):
@@ -68,7 +68,7 @@ async def shop_draw_get(list_shop:list,vp='0',rp='0',img_src='',img_ratio='0'):
             # 出现aiohttp错误，或者是json解析错误
             if "Cannot connect to host" in err_cur or "Expecting value: line 1" in err_cur:
                 # 如果rootUrl是不是备用的，那就改成本地（反过来也一样）
-                rUrl = bot_config["val_api_url"] if rUrl == bot_config["val_api_url_bak"] else bot_config["val_api_url_bak"]
+                rUrl = api_config["val_api_url"] if rUrl == api_config["val_api_url_bak"] else api_config["val_api_url_bak"]
                 _log.info(f"[ConnectError] {result} - [rootUrl] swap to {rUrl}")
             else:
                 raise result
