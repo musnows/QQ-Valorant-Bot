@@ -167,8 +167,8 @@ def sm_comp_169(skin_img_url, skin_name, price, skin_level_icon, skinuuid):
     # bg.show() #测试用途，展示图片 (linux不可用)
 
     # 判断该皮肤图片的本地路径是否存在，如果不存在，则保存到本地
-    if not os.path.exists(f'./log/img_temp_vip/comp/{skinuuid}.png'):
-        bg.save(f'./log/img_temp_vip/comp/{skinuuid}.png')
+    if not os.path.exists(f'./log/img_temp/169/comp/{skinuuid}.png'):
+        bg.save(f'./log/img_temp/169/comp/{skinuuid}.png')
     global weapon_icon_temp_169  #皮肤图片的抽屉
     if skinuuid not in weapon_icon_temp_169:
         weapon_icon_temp_169[skinuuid] = bg
@@ -318,7 +318,7 @@ async def get_shop_img_169(list_shop: dict, vp: int, rp: int, bg_img_src="err"):
     shop_img_temp_169[ran] = []
     # 开始遍历4个皮肤uuid
     for skinuuid in list_shop:
-        img_path = f'./log/img_temp_vip/comp/{skinuuid}.png'
+        img_path = f'./log/img_temp/169/comp/{skinuuid}.png'
         if skinuuid in weapon_icon_temp_169:  # 16-9需要用的全局变量
             shop_img_temp_169[ran].append(weapon_icon_temp_169[skinuuid])
         elif os.path.exists(img_path):  # 全局变量里面没有，要去本地路径里面找
