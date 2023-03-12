@@ -15,7 +15,7 @@ from utils import BotVip,task
 from utils.file.FileManage import save_all_file,_log
 from utils.file.Files import bot_config,UserAuthCache,UserPwdReauth,SkinRateDict,UserRtsDict
 from utils.valorant import Val,Reauth,AuthCache
-from utils.shop import ShopApi,ShopRate
+from utils.shop import ShopApi,ShopRate,ShopImg
 from utils.valorant.EzAuth import EzAuthExp,EzAuth
 from utils.Gtime import GetTime,GetTimeFromStamp
 from utils.Channel import listenConf
@@ -212,40 +212,41 @@ class MyClient(botpy.Client):
             timeout = resp["SkinsPanelLayout"]["SingleItemOffersRemainingDurationInSeconds"]  # 剩余时间
             timeout = time.strftime("%H:%M:%S", time.gmtime(timeout))  # 将秒数转为标准时间
             log_time += f"[Api.shop] {format(time.time()-shop_api_time,'.4f')} "
-            # 4.api获取用户vp/rp
-            # vrDict = await Val.fetch_vp_rp_dict(userdict)
+
             # 5.请求shop-draw接口，获取返回值
             draw_time = time.time() # 开始画图计时
+            # 5.1 采用kook-bot的api获取图片url
             ret = await ShopApi.shop_draw_get(list_shop=list_shop,img_ratio="1")
-            if ret['code']: # 出现错误
+            # 5.2 采用本地画图
+            # vrDict = await Val.fetch_vp_rp_dict(userdict) # api获取用户vp/rp
+            # ret = await ShopImg.img_draw(list_shop,vrDict['vp'],vrDict['rp'])
+
+            # 5.4 code不为0 出现错误
+            if ret['code']:
                 raise Exception(f"shop-draw err! {ret}")
-            # 返回成功
+            # 5.5 返回成功,打印日志
             log_time += f"- [Drawing] {format(time.time() - draw_time,'.4f')} - [Au] {msg.author.id}"
             _log.info(log_time)
-            # 6.一切正常，获取图片bytes (跳过，采用url传图)
-            # https://bot.q.qq.com/wiki/develop/gosdk/api/message/message_format.html#message
-            # 发现可以直接传图片url，但是sdk的exp里面没有，看来还是得自己看文档
-            _log.info(f"[imgUrl] {ret['message']}")
-            # img_bytes= await shop_img_load(ret['message'],key=msg.author.id)
+            if ret['type'] != 'pil': _log.info(f"[img] {ret['type']} | {ret['message']} | ")
 
-            # 7.皮肤评分和评价
+            # 6.皮肤评分和评价
             cm = await ShopRate.get_shop_rate_cm(list_shop, msg.author.id)
-            # 死循环尝试上传
-            i = 0 # 尝试次数
-            while True:
+            # 7.死循环尝试上传
+            for i in range(5):
                 try:
-                    i+=1 # 尝试次数+1
                     shop_using_time = format(time.perf_counter() - start_time, '.2f')  # 结束总计时
-                    await msg.reply(
-                        content=f"<@{msg.author.id}>\n玩家「{player_gamename}」的商店\n本次查询耗时：{shop_using_time}s\n\n{cm}",
-                        image=ret['message']
-                    )
+                    text = f"<@{msg.author.id}>\n玩家「{player_gamename}」的商店\n本次查询耗时：{shop_using_time}s\n\n{cm}"
+                    if ret['type'] == 'pil': # 如果是pil，则获取图片bytes
+                        img_bytes = await ShopImg.shop_img_bytes(ret['message'])
+                        await msg.reply(content=text,file_image=img_bytes)
+                    else:
+                        await msg.reply(content=text,image=ret['message'])
+                    
                     break # 走到这里代表reply成功
                 except errors.ServerError as result:
                     # 出现上传图片错误
                     if "download file err" in str(result) or "upload image error" in str(result):
-                        if i >= 4: # 尝试超过4次了
-                            raise result # 跳出循环
+                        if i >= 4: raise result # 尝试超过4次，跳出循环
                         # 打印错误信息
                         _log.info(f"[{i}] Au:{msg.author.id} = botpy.errors.ServerError: {result}") 
                         continue # 重试

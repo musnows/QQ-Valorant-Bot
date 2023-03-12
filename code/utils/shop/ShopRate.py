@@ -386,3 +386,64 @@ async def remove_UserRate(skin_uuid:str,user_id:str):
         return True
     
     return False
+
+#########################################################################
+
+import hashlib
+ 
+# 生成字符串的MD5值
+def md5(content:str):
+    """generate md5 for string
+    """
+    if content is None:
+        return ''
+    md5gen = hashlib.md5()
+    md5gen.update(content.encode())
+    md5code = md5gen.hexdigest()
+    md5gen = None
+    return md5code
+
+
+# 生成字符串的SHA256值
+def sha256(content:str):
+    if content is None:
+        return ''
+    sha256gen = hashlib.sha256()
+    sha256gen.update(content.encode())
+    sha256code = sha256gen.hexdigest()
+    sha256gen = None
+    return sha256code
+
+# 生成skinlist的md5
+def get_skinlist_md5(skinlist:list):
+    """Args: skinlist with 4 skin_uuid\n
+    Return: md5(md5+sha) str
+    """
+    skinlist = sorted(skinlist) # 排序
+    # 将uuid拼接
+    strlist = "=".join(i for i in skinlist)
+    md5Ret = md5(strlist) # 计算md5
+    shaRet = sha256(strlist) # 计算sha256
+    return md5(md5Ret+shaRet) # 两个一起还撞车，买彩票去吧
+
+# 判断皮肤的值是否有缓存
+async def query_ShopCache(skinlist:list):
+    """Args: skinlist with 4 skin_uuid\n
+    Info: this def only used by none vip shop img
+
+    Return:{
+        "status": True/False,
+        "img_url": shop img url (will be empty when status False)
+    }
+    """
+    md5Ret = get_skinlist_md5(skinlist)
+    ret = { "status": False,"img_url":""}
+    query = leancloud.Query('ShopCache')
+    query.equal_to('md5',md5Ret) # 查找md5值相同的元素
+    objlist = query.find()
+    if len(objlist) > 0: #找到了
+        ret['img_url'] = objlist[0].get('imgUrl')
+        ret['status'] = True
+        _log.info(f"ShopCache hit [{md5Ret}]")
+ 
+    return ret
