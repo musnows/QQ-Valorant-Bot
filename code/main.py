@@ -476,7 +476,7 @@ class MyClient(botpy.Client):
             SkinRateDict['data'][msg.author.id][skin_uuid] = {}
             SkinRateDict['data'][msg.author.id][skin_uuid]['name'] = S_skin['skin']['displayName']
             SkinRateDict['data'][msg.author.id][skin_uuid]['cmt'] = comment
-            SkinRateDict['data'][msg.author.id][skin_uuid]['pit'] = point
+            SkinRateDict['data'][msg.author.id][skin_uuid]['rating'] = point
             SkinRateDict['data'][msg.author.id][skin_uuid]['time'] = int(time.time()) # 秒级
             SkinRateDict['data'][msg.author.id][skin_uuid]['msg_id'] = msg.id
             # 数据库添加该评论
