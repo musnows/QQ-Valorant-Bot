@@ -54,13 +54,13 @@ async def get_shop_rate(list_shop: dict, user_id: str):
             #记录当日冠军和屌丝
             if rate_avg >= SkinRateDict["cmp"]["best"]["rating"]:
                 SkinRateDict["cmp"]["best"]["rating"] = rate_avg
-                SkinRateDict["cmp"]["best"]["skin"] = list_shop
-                SkinRateDict["cmp"]["best"]["kook_id"] = user_id
+                SkinRateDict["cmp"]["best"]["list_shop"] = list_shop
+                SkinRateDict["cmp"]["best"]["user_id"] = user_id
                 _log.info(f"[shop] update rate-best  Au:{user_id} = {rate_avg}")
             elif rate_avg <= SkinRateDict["cmp"]["worse"]["rating"]:
                 SkinRateDict["cmp"]["worse"]["rating"] = rate_avg
-                SkinRateDict["cmp"]["worse"]["skin"] = list_shop
-                SkinRateDict["cmp"]["worse"]["kook_id"] = user_id
+                SkinRateDict["cmp"]["worse"]["list_shop"] = list_shop
+                SkinRateDict["cmp"]["worse"]["user_id"] = user_id
                 _log.info(f"[shop] update rate-worse Au:{user_id} = {rate_avg}")
 
             if rate_avg >= 0 and rate_avg <= 20:
@@ -118,12 +118,12 @@ async def check_shop_rate(user_id: str, list_shop: list):
         #记录冠军和屌丝
         if rate_avg >= SkinRateDict["cmp"]["best"]["rating"]:
             SkinRateDict["cmp"]["best"]["rating"] = rate_avg
-            SkinRateDict["cmp"]["best"]["skin"] = list_shop
-            SkinRateDict["cmp"]["best"]["kook_id"] = user_id
+            SkinRateDict["cmp"]["best"]["list_shop"] = list_shop
+            SkinRateDict["cmp"]["best"]["user_id"] = user_id
         elif rate_avg <= SkinRateDict["cmp"]["worse"]["rating"]:
             SkinRateDict["cmp"]["worse"]["rating"] = rate_avg
-            SkinRateDict["cmp"]["worse"]["skin"] = list_shop
-            SkinRateDict["cmp"]["worse"]["kook_id"] = user_id
+            SkinRateDict["cmp"]["worse"]["list_shop"] = list_shop
+            SkinRateDict["cmp"]["worse"]["user_id"] = user_id
         return True
     else:
         return False
@@ -165,14 +165,14 @@ async def update_ShopCmp():
             raise Exception("leancloud find today err!")
         # 开始更新，先设置为最差
         rate_avg = SkinRateDict["kkn"]["worse"]["rating"]
-        list_shop = SkinRateDict["kkn"]["worse"]["skin"]
-        user_id = SkinRateDict["kkn"]["worse"]["kook_id"]
+        list_shop = SkinRateDict["kkn"]["worse"]["list_shop"]
+        user_id = SkinRateDict["kkn"]["worse"]["user_id"]
         for i in objlist:
             if(i.get('best')): # 是最佳 
                 # 设置值
                 rate_avg = SkinRateDict["kkn"]["best"]["rating"]
-                list_shop = SkinRateDict["kkn"]["best"]["skin"]
-                user_id = SkinRateDict["kkn"]["best"]["kook_id"]
+                list_shop = SkinRateDict["kkn"]["best"]["list_shop"]
+                user_id = SkinRateDict["kkn"]["best"]["user_id"]
             
             # 更新对象并保存
             i.set('userId',user_id)

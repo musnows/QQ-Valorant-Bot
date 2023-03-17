@@ -11,8 +11,11 @@ def shop_cmp_post_task():
     SkinRateDict["kkn"] = copy.deepcopy(SkinRateDict["cmp"])
     SkinRateDict["cmp"]["best"]["list_shop"] = list()
     SkinRateDict["cmp"]["best"]["rating"] = 0
+    SkinRateDict["cmp"]["best"]["user_id"] = "0"
     SkinRateDict["cmp"]["worse"]["list_shop"] = list()
     SkinRateDict["cmp"]["worse"]["rating"] = 100
+    SkinRateDict["cmp"]["worse"]["user_id"] = "0"
+
     # 更新到db
     ret = ShopApi.shop_cmp_post(SkinRateDict["kkn"]["best"],SkinRateDict["kkn"]["worse"])
     _log.info(f"[ShopCmp.TASK] {ret.json()}")
