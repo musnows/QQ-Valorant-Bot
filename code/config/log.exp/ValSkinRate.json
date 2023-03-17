@@ -1,0 +1,28 @@
+{
+  "cmp": {
+    "best": {
+      "rating": 100.0,
+      "list_shop": [],
+      "user_id": ""
+    },
+    "worse": {
+      "rating": 0.0,
+      "list_shop": [],
+      "user_id": ""
+    }
+  },
+  "data": {},
+  "err_user": {},
+  "kkn": {
+    "best": {
+      "rating": 100.0,
+      "list_shop": [],
+      "user_id": ""
+    },
+    "worse": {
+      "rating": 0.0,
+      "list_shop": [],
+      "user_id": ""
+    }
+  }
+}

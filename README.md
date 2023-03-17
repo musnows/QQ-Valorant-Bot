@@ -77,18 +77,9 @@ EzAuth登录类已重写，拳头cookie重登**不再**依赖于 [floxay/python-
 
 ### 2.2 log
 
-Bot运行时需要多个依赖项文件，完整的文件列表详见 [FileManage](./code/utils/FileManage.py)
+Bot运行时需要多个依赖项文件，完整的文件列表详见 [Files](./code/utils/file/Files.py)
 
-请在 `code/log` 目录下创建 `UserAuthID.json`，初始化为如下字段
-
-```json
-{
-  "ap_log": {},
-  "data": {}
-}
-```
-
-其余需要的文件均和kook机器人需要的文件同名，参考 [docs/log.example](https://github.com/musnows/Kook-Valorant-Bot/tree/develop/docs/log.example)
+需要的文件均和kook机器人需要的文件同名，参考 [code/config/log.exp](./code/config/log.exp/)，将该文件夹内的示例文件移入 `./code/log` 文件夹即可。
 
 有任何问题，请加入我的kook频道，或阿狸bot的qq频道与我联系。
 

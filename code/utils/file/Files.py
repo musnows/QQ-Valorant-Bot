@@ -33,7 +33,7 @@ UserRtsDict = {}
 
 _log.info(f"[File] load all files") # 走到这里代表所有文件都打开了
 
-LogPath = ['./log','./log/cookie/','./log/img_temp/weapon','./log/img_temp/comp','./log/img_temp/169/comp/']
+LogPath = ['./log','./log/cookie/','./log/img_temp/weapon','./log/img_temp/comp','./log/img_temp/169/comp/','./log/mission/']
 """自动创建存放商店图片缓存的文件夹"""
 for path in LogPath:
     if(not os.path.exists(path)):
