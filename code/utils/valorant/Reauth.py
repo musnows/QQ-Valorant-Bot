@@ -121,6 +121,6 @@ async def check_reauth(def_name: str,
             _log.info(f"Au:{user_id} | No need to reauthorize [{result}]")
             return auth
         else:
-            if msg: msg.reply(content=f"{at_text}出现错误! reauth:\n{result}")
+            if msg: await msg.reply(content=f"{at_text}出现错误! reauth:\n{result}")
             _log.exception(f"Unkown Exception | Au:{user_id}")
             return None

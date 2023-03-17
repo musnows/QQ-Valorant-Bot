@@ -12,7 +12,7 @@ from botpy.message import Message,DirectMessage
 from botpy.types.message import Reference
 
 from utils import BotVip,task
-from utils.file.FileManage import save_all_file,_log
+from utils.file.FileManage import save_all_file,_log,write_file
 from utils.file.Files import bot_config,UserAuthCache,UserPwdReauth,SkinRateDict,UserRtsDict
 from utils.valorant import Val,Reauth,AuthCache
 from utils.shop import ShopApi,ShopRate,ShopImg
@@ -495,6 +495,42 @@ class MyClient(botpy.Client):
             _log.info(f"ERR! [{GetTime()}] rts\n{traceback.format_exc()}")
             await msg.reply(content=f"[rts] 出现错误\n{result}",message_reference=at_text)
 
+    async def mission_cmd(self,msg:Message,at_text):
+        _log.info(f"[mission] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
+        try:
+            retlist = await AuthCache.get_auth_object("qqbot",msg.author.id)
+            if not retlist:
+                await msg.reply(content=f"您尚未登录，请私聊使用「/login 账户 密码」登录",message_reference=at_text)
+                return
+            # 2.直接使用for循环来获取不同用户的信息
+            text = ""
+            for ru in retlist:
+                try:
+                    auth = ru["auth"]
+                    assert isinstance(auth,EzAuth)
+                    # 3.执行cookie重登
+                    auth = await Reauth.check_reauth("玩家任务",msg.author.id,auth.user_id,msg)
+                    if not auth: return  #如果为假说明重新登录失败
+
+                    # 获取玩家任务
+                    ret = await Val.fetch_player_contract(auth.get_riotuser_token())
+                    m = ret["Missions"]
+                    id_text = f"{auth.user_id}_{GetTime()}"
+                    text += f"{auth.Name}#{auth.Tag} = {id_text}\n"
+                    write_file(f'./log/mission/{id_text}.json',ret)
+                    _log.info(f"Au:{msg.author.id} | get {auth.user_id} mission success")
+                except KeyError as result:
+                    if "Missions" in str(result):
+                        _log.exception(f"KeyErr while Au:{msg.author.id} | Ru:{auth.user_id}")
+            
+            # 多个账户都获取完毕，发送卡片并输出结果
+            cm = f"任务获取成功，感谢您对开发的贡献！\n\n请转到金山表单填写相关信息(详见公告)\n填写表单时，提供下方=右侧编号即可\n##########\n{text}"
+            await msg.reply(content=cm,message_reference=at_text)
+            _log.info(f"Au:{msg.author.id} | mission reply successful!")
+        except Exception as result:
+            _log.exception(f"mission while {msg.author.id}")
+            await msg.reply(content=f"[mission] 未知错误\n{result}",message_reference=at_text)
+
     # 监听公频消息
     async def on_at_message_create(self, message: Message):
         try:
@@ -641,6 +677,8 @@ class MyClient(botpy.Client):
                     await self.shop_cmd(message,index=index,at_text=at_text)
                 elif '/uinfo' in content:
                     await self.uinfo_cmd(message,at_text=at_text)
+                elif '/mission' in content:
+                    await self.mission_cmd(message,at_text=at_text)
             else: # 无法登录
                 await Val.loginStat.sendForbidden(message)
                 _log.info(f"[LoginStatus] Au:{message.author.id} Command Failed")

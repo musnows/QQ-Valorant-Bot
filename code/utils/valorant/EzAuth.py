@@ -13,7 +13,8 @@ log = logging.getLogger(__name__)
 
 from . import EzAuthExp
 # get latest version: https://valorant-api.com/v1/version
-X_RIOT_CLIENTVERSION = "RiotClient/63.0.9.4909983.4789131"
+RIOT_CLIENTVERSION = "RiotClient/63.0.9.4909983.4789131"
+X_RIOT_CLIENTVERSION = "release-06.05-shipping-11-843632"
 X_RIOT_CLIENTVPLATFROM =  "ew0KCSJwbGF0Zm9ybVR5cGUiOiAiUEMiLA0KCSJwbGF0Zm9ybU9TIjogIldpbmRvd3MiLA0KCSJwbGF0Zm9ybU9TVmVyc2lvbiI6ICIxMC4wLjE5MDQyLjEuMjU2LjY0Yml0IiwNCgkicGxhdGZvcm1DaGlwc2V0IjogIlVua25vd24iDQp9"
 TFA_TIME_LIMIT = 600  # 600s时间限制
 
