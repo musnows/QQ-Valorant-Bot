@@ -69,7 +69,7 @@ async def shop_draw_get(list_shop:list,vp='0',rp='0',img_src='',img_ratio='0'):
             if "Cannot connect to host" in err_cur or "Expecting value: line 1" in err_cur:
                 # 如果rootUrl是不是备用的，那就改成本地（反过来也一样）
                 rUrl = api_config["val_api_url"] if rUrl == api_config["val_api_url_bak"] else api_config["val_api_url_bak"]
-                _log.info(f"[ConnectError] {result} - [rootUrl] swap to {rUrl}")
+                _log.warning(f"[ConnectError] {result} - [rootUrl] swap to {rUrl}")
             else:
                 raise result
             

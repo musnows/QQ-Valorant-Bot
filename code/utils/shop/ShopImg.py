@@ -34,7 +34,7 @@ async def shop_img_test(message):
         for i in range(5):
             try:
                 await message.reply(content="这是一个测试",file_image=img_bytes)
-                _log.info("success")
+                _log.info(f"success | Au:{message.author.id}")
                 break
             except Exception as result:
                 _log.error(f"err {i} | {result}")

@@ -90,10 +90,10 @@ class MyClient(botpy.Client):
                 f"[Login] Au:{msg.author.id} - {auth.Name}#{auth.Tag}"
             )
         except EzAuthExp.AuthenticationError as result:
-            _log.info(f"ERR! [{GetTime()}] login Au:{msg.author.id} - {result}")
+            _log.warning(f"ERR! [{GetTime()}] login Au:{msg.author.id} - {result}")
             await msg.reply(content=f"登录错误，请检查账户、密码、邮箱验证码",message_reference=at_text)
         except EzAuthExp.WaitOvertimeError as result:
-            _log.info(f"ERR! [{GetTime()}] login Au:{msg.author.id} - {result}")
+            _log.warning(f"ERR! [{GetTime()}] login Au:{msg.author.id} - {result}")
             await msg.reply(content="2fa等待超时，会话关闭",message_reference=at_text)
         except EzAuthExp.RatelimitError as result:
             err_str = f"ERR! [{GetTime()}] login Au:{msg.author.id} - {result}"
@@ -101,9 +101,9 @@ class MyClient(botpy.Client):
             Val.loginStat.setRateLimit()
             # 这里是第一个出现速率限制err的用户,更新消息提示
             await msg.reply(content=f"登录请求超速！请在{Val.loginStat.RATE_LIMITED_TIME}s后重试",message_reference=at_text)
-            _log.info(err_str," set login_rate_limit = True")
+            _log.warning(err_str," set login_rate_limit = True")
         except KeyError as result:
-            _log.info(f"ERR! [{GetTime()}] login Au:{msg.author.id} - KeyError:{result}")
+            _log.exception(f"ERR! [{GetTime()}] login Au:{msg.author.id}")
             text = f"遇到未知的KeyError，请联系阿狸的主人哦~"
             if '0' in str(result):
                 text = f"遇到不常见的KeyError，可能👊Api服务器炸了"
@@ -113,11 +113,10 @@ class MyClient(botpy.Client):
             err_str = f"ERR! [{GetTime()}] login Au:{msg.author.id}\n```\n{traceback.format_exc()}\n```\n"
             err_str = Reauth.client_exceptions_handler(str(result),err_str)
             # 打印+发送消息
-            _log.info(err_str)
+            _log.error(err_str)
             await msg.reply(content=f"出现了aiohttp请求错误！获取失败，请稍后重试",message_reference=at_text)
         except Exception as result:
-            text=f"ERR! [{GetTime()}] login Au:{msg.author.id}\n{traceback.format_exc()}"
-            _log.info(text)
+            _log.exception(f"[{GetTime()}] login Au:{msg.author.id}")
             await msg.reply(content=f"出现了未知错误！login\n{result}",message_reference=at_text)
 
 
@@ -251,7 +250,7 @@ class MyClient(botpy.Client):
                     if "download file err" in str(result) or "upload image error" in str(result):
                         if i >= 4: raise result # 尝试超过4次，跳出循环
                         # 打印错误信息
-                        _log.info(f"[{i}] Au:{msg.author.id} = botpy.errors.ServerError: {result}") 
+                        _log.warning(f"[{i}] Au:{msg.author.id} = botpy.errors.ServerError: {result}") 
                         continue # 重试
                     else:# 其他错误，依旧raise
                         raise result
@@ -356,7 +355,7 @@ class MyClient(botpy.Client):
                 # 5.发送消息（因为qq频道每一个消息只能带上一张图片，所以得单独发两条消息
                 await msg.reply(content=f"<@{msg.author.id}>\n"+text,image=player_card['data']['wideArt'])
             # 结束
-            _log.info(f"[{GetTime()}] Au:{msg.author.id} uinfo reply successful!")
+            _log.info(f"[{GetTime()}] Au:{msg.author.id} uinfo reply success!")
         except Exception as result:
             if "download file err" in str(result) or "upload image error"  in str(result):
                 await msg.reply(content=f"<@{msg.author.id}>\n{text}\n获取玩家卡面图片错误",message_reference=at_text)
@@ -400,7 +399,7 @@ class MyClient(botpy.Client):
             await msg.reply(content=text,message_reference=at_text)
             _log.info(f"[{GetTime()}] [kkn] reply success")
         except Exception as result:
-            _log.info(f"ERR! [{GetTime()}] kkn\n{traceback.format_exc()}")
+            _log.exception(f"ERR! [{GetTime()}] kkn Au:{msg.author.id}") 
             await msg.reply(content=f"[kkn] 出现错误\n{result}",message_reference=at_text)
     
     # 选择需要评论的皮肤
@@ -431,7 +430,7 @@ class MyClient(botpy.Client):
             # 发送
             await msg.reply(content=head+text+sub_text+text1,message_reference=at_text)
         except Exception as result:
-            _log.info(f"ERR! [{GetTime()}] rate\n{traceback.format_exc()}")
+            _log.exception(f"ERR! [{GetTime()}] rate Au:{msg.author.id}") 
             await msg.reply(content=f"[rate] 出现错误\n{result}",message_reference=at_text)  
 
     # 评论皮肤
@@ -492,7 +491,7 @@ class MyClient(botpy.Client):
             await msg.reply(content=text1+"\n"+text2,message_reference=at_text)
             _log.info(f"[{GetTime()}] [rts] Au:{msg.author.id} {text1} {skin_uuid}")    
         except Exception as result:
-            _log.info(f"ERR! [{GetTime()}] rts\n{traceback.format_exc()}")
+            _log.exception(f"ERR! [{GetTime()}] rts Au:{msg.author.id}") 
             await msg.reply(content=f"[rts] 出现错误\n{result}",message_reference=at_text)
 
     async def mission_cmd(self,msg:Message,at_text):
@@ -599,8 +598,7 @@ class MyClient(botpy.Client):
                 _log.info(f"[LoginStatus] Au:{message.author.id} Command Failed")
                 return
         except Exception as result:
-            _log.info(f"[at_msg] G:{message.guild_id} C:{message.channel_id} Au:{message.author.id} = {message.content}")
-            _log.info(traceback.format_exc())
+            _log.exception(f"[at_msg] G:{message.guild_id} C:{message.channel_id} Au:{message.author.id} = {message.content}")
             await message.reply(content=f"[on_at_message_create]\n出现了未知错误，请联系开发者！\n{result}",message_reference=at_text)
 
     # 监听私聊消息
@@ -684,8 +682,7 @@ class MyClient(botpy.Client):
                 _log.info(f"[LoginStatus] Au:{message.author.id} Command Failed")
                 return
         except Exception as result:
-            _log.info(f"[dm_msg] G:{message.guild_id} C:{message.channel_id} Au:{message.author.id} = {message.content}")
-            _log.info(traceback.format_exc())
+            _log.exception(f"[dm_msg] G:{message.guild_id} C:{message.channel_id} Au:{message.author.id} = {message.content}")
             await message.reply(content=f"[on_direct_message_create]\n出现了未知错误，请联系开发者！\n{result}",message_reference=at_text)
 
 
