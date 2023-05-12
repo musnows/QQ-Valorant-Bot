@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 import time
-import threading
 import traceback
 import os
 
 import botpy
 from aiohttp import client_exceptions
+from typing import Union
 
 from botpy import errors
 from botpy.message import Message,DirectMessage
@@ -25,7 +25,7 @@ IMG_DRAW = bot_config["img_draw"]
 """是否进行本地画图"""
 
 # help命令文字
-def help_text(bot_id:str):
+def help_text(bot_id:Union[str,int]):
     text = "以下为阿狸的的命令列表\n"
     text+= "「/login 账户 密码」登录拳头账户，必须私聊使用\n"
     text+= "「/tfa 验证码」提供邮箱验证码，必须私聊使用\n"
@@ -47,7 +47,7 @@ class MyClient(botpy.Client):
 
 
     # 登录命令
-    async def login_cmd(self,msg:Message,account:str,passwd:str,at_text):
+    async def login_cmd(self,msg:Union[Message,DirectMessage],account:str,passwd:str,at_text):
         _log.info(f"[login] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id}")
         global UserAuthCache
         try:
@@ -121,7 +121,7 @@ class MyClient(botpy.Client):
 
 
     # 邮箱验证
-    async def tfa_cmd(self,msg:Message,vcode:str,at_text):
+    async def tfa_cmd(self,msg:Union[Message,DirectMessage],vcode:str,at_text):
         _log.info(f"[tfa] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id}")
         try:
             # 1.判断缓存中是否有该键值
@@ -175,7 +175,7 @@ class MyClient(botpy.Client):
         _log.info(f"[help] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
 
     # 获取商店
-    async def shop_cmd(self,msg:Message,index:int,at_text):
+    async def shop_cmd(self,msg:Union[Message,DirectMessage],index:int,at_text:str):
         """获取商店，请保证传入的index为int"""
         _log.info(f"[shop] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
         try:
@@ -270,7 +270,7 @@ class MyClient(botpy.Client):
             else:
                 await msg.reply(content=f"[shop] 出现未知错误！\n{result}",message_reference=at_text)
 
-    async def login_list_cmd(self,msg:Message,at_text=""):
+    async def login_list_cmd(self,msg:Union[Message,DirectMessage],at_text=""):
         """发送已登录账户列表"""
         _log.info(f"[login-l] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
         try:
@@ -296,7 +296,7 @@ class MyClient(botpy.Client):
             await msg.reply(content=f"[login-l] 出现未知错误！\n{result}",message_reference=at_text)
 
     # 获取uinfo
-    async def uinfo_cmd(self,msg:Message,at_text=""):
+    async def uinfo_cmd(self,msg:Union[Message,DirectMessage],at_text=""):
         _log.info(f"[uinfo] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
         text=" "# 先设置为空串，避免except中报错
         try:
@@ -367,7 +367,7 @@ class MyClient(botpy.Client):
                 await msg.reply(content=f"[uinfo] 未知错误\n{result}",message_reference=at_text)
     
     # 获取昨日最高/最低
-    async def kkn_cmd(self,msg:Message,at_text):
+    async def kkn_cmd(self,msg:Union[Message,DirectMessage],at_text):
         _log.info(f"[kkn] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
         try:
             # 从数据库中获取
@@ -403,7 +403,7 @@ class MyClient(botpy.Client):
             await msg.reply(content=f"[kkn] 出现错误\n{result}",message_reference=at_text)
     
     # 选择需要评论的皮肤
-    async def rate_cmd(self,msg:Message,name:str,at_text):
+    async def rate_cmd(self,msg:Union[Message,DirectMessage],name:str,at_text):
         _log.info(f"[rate] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
         try:
             retlist = await ShopRate.get_available_skinlist(name)
@@ -434,7 +434,7 @@ class MyClient(botpy.Client):
             await msg.reply(content=f"[rate] 出现错误\n{result}",message_reference=at_text)  
 
     # 评论皮肤
-    async def rts_cmd(self,msg:Message,index:int,rating:int,comment:str,at_text):
+    async def rts_cmd(self,msg:Union[Message,DirectMessage],index:int,rating:int,comment:str,at_text):
         _log.info(f"[rts] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
         try:
             if msg.author.id not in UserRtsDict:
@@ -494,7 +494,7 @@ class MyClient(botpy.Client):
             _log.exception(f"ERR! [{GetTime()}] rts Au:{msg.author.id}") 
             await msg.reply(content=f"[rts] 出现错误\n{result}",message_reference=at_text)
 
-    async def mission_cmd(self,msg:Message,at_text):
+    async def mission_cmd(self,msg:Union[Message,DirectMessage],at_text):
         _log.info(f"[mission] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
         try:
             retlist = await AuthCache.get_auth_object("qqbot",msg.author.id)
