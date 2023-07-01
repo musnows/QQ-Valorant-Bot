@@ -17,11 +17,17 @@
     },
     "leancloud":{
         "appid":"leancloud数据库appid",
-        "master_key":"leancloud数据库master_key(未使用)",
         "appkey":"leancloud数据库appkey",
         "user_name":"leancloud数据库内嵌用户名",
         "user_pwd":"leancloud数据库内嵌用户密码",
-        "info":"更多信息见 https://github.com/Valorant-Shop-CN/Kook-Valorant-Bot/blob/develop/docs/leancloud.md"
+        "info":"leancloud是公开的皮肤评论数据库，并非bot自身数据，更多信息见 https://github.com/Valorant-Shop-CN/Kook-Valorant-Bot/blob/develop/docs/leancloud.md"
+    },
+    "mysql":{
+        "host":"127.0.0.1",
+        "port":3306,
+        "user":"",
+        "password":"",
+        "database":""
     },
     "platform":"qqchannel"
 }
