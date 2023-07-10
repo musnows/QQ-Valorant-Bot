@@ -22,5 +22,6 @@
         "user_pwd":"leancloud数据库内嵌用户密码",
         "info":"leancloud是公开的皮肤评论数据库，并非bot自身数据，更多信息见 https://github.com/Valorant-Shop-CN/Kook-Valorant-Bot/blob/develop/docs/leancloud.md"
     },
-    "platform":"qqchannel"
+    "platform":"qqchannel",
+    "ping_task_url_exp": "如果不知道ping_task_url是什么，请留为空字符串或者删除键值！"
 }

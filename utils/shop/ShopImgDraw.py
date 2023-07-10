@@ -352,7 +352,9 @@ async def get_shop_img_169(list_shop: dict, vp: int, rp: int, bg_img_src="err"):
         if skinuuid in weapon_icon_temp_169:  # 16-9需要用的全局变量
             shop_img_temp_169[ran].append(weapon_icon_temp_169[skinuuid])
         elif os.path.exists(img_path):  # 全局变量里面没有，要去本地路径里面找
-            shop_img_temp_169[ran].append(Image.open(img_path))
+            img_cur = Image.open(img_path)
+            shop_img_temp_169[ran].append(img_cur)
+            weapon_icon_temp_169[skinuuid] = img_cur # 插入到全局变量中
         else:  # 都没有，画图
             th = threading.Thread(target=skin_uuid_to_comp, args=(skinuuid, ran, 1))
             th.start()
@@ -435,7 +437,9 @@ async def get_shop_img_11(list_shop: dict, bg_img_src="err"):
         if skinuuid in weapon_icon_temp_11:  # 1-1需要用的抽屉
             shop_img_temp_11[ran].append(weapon_icon_temp_11[skinuuid])
         elif os.path.exists(img_path):
-            shop_img_temp_11[ran].append(Image.open(img_path))
+            img_cur = Image.open(img_path)
+            shop_img_temp_11[ran].append(img_cur)
+            weapon_icon_temp_11[skinuuid] = img_cur # 插入到全局变量中
         else:
             th = threading.Thread(target=skin_uuid_to_comp, args=(skinuuid, ran, False))
             th.start()

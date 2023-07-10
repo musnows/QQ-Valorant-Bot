@@ -76,7 +76,7 @@ async def get_shop_rate(list_shop: dict, user_id: str):
 
         return { "sum":rate_avg,"lv":rate_lv,"text_list":rate_text,"count":rate_count }
     except Exception as result:
-        _log.info(f"ERR! [get_shop_rate]\n{traceback.format_exc()}")
+        _log.exception(f"ERR! [get_shop_rate] Au:{user_id} | {list_shop}")
         return { "sum":0,"lv":"皮肤评价数据仍待收集…","text_list":[],"count":0 }
 
 # 获取皮肤评价的卡片
@@ -183,7 +183,7 @@ async def update_ShopCmp():
             i.save()
             _log.info(f"[update_shop_cmp] saving best:{i.get('best')}")
     except:
-        _log.info(f"ERR! [update_shop_cmp]\n{traceback.format_exc()}")
+        _log.exception(f"ERR! [update_shop_cmp]")
 
 # 获取昨日最好/最差用户
 async def get_ShopCmp():
