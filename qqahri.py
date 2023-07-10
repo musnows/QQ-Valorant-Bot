@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import time
-import threading
+import aiohttp
 import traceback
 import os
 
@@ -13,7 +13,7 @@ from botpy.types.message import Reference
 
 from utils import BotVip,task
 from utils.file.FileManage import save_all_file,_log,write_file
-from utils.file.Files import bot_config,UserAuthCache,UserPwdReauth,SkinRateDict,UserRtsDict
+from utils.file.Files import bot_config,UserAuthCache,UserPwdReauth,SkinRateDict,UserRtsDict,UserShopBgDict
 from utils.valorant import Val,Reauth,AuthCache
 from utils.shop import ShopApi,ShopRate,ShopImg
 from utils.valorant.EzAuth import EzAuthExp,EzAuth
@@ -39,6 +39,14 @@ def help_text(bot_id:str):
     text+=f"在公频中使用命令，需要在命令前加上 <@{bot_id}>\n"
     text+=f"机器人帮助频道，可在机器人介绍中点击加入！"
     return text
+
+async def img_requestor(img_url:str):
+    """图片获取器"""
+    if img_url and 'http' not in img_url:
+        raise Exception(f"http not in img_url: {img_url}")
+    async with aiohttp.ClientSession() as session:
+        async with session.get(img_url) as r:
+            return await r.read()
 
 # bot main
 class MyClient(botpy.Client):
@@ -174,6 +182,29 @@ class MyClient(botpy.Client):
         text = help_text(self.robot.id)
         await msg.reply(content=text,message_reference=at_text)
         _log.info(f"[help] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
+
+    async def shop_bg_cmd(self,msg:Message,shop_bg_url:str,at_text):
+        """设置用户商店背景图"""
+        _log.info(f"[shop-bg] G:{msg.guild_id} C:{msg.channel_id} Au:{msg.author.id} = {msg.content}")
+        try:
+            global UserShopBgDict
+            if 'data' not in UserShopBgDict:
+                UserShopBgDict['data'] = {}
+            # 判断图片能不能正常获取
+            img_ret = await img_requestor(shop_bg_url)
+            # 创建用户键值
+            if msg.author.id not in UserShopBgDict['data']:
+                UserShopBgDict['data'][msg.author.id] = {}
+            # 设置图片
+            UserShopBgDict['data'][msg.author.id] = {"bg_url": shop_bg_url,"cache":"","cache_time":0}
+            text = "商店背景图片设置成功！"
+            await msg.reply(content=text,message_reference=at_text)
+            _log.info(
+                f"shop-bg | Au:{msg.author.id} | set {shop_bg_url}"
+            )
+        except Exception as result:
+            _log.exception(f"shop-bg Au:{msg.author.id}")
+            await msg.reply(content=f"出现错误！shop-bg\n{result}",message_reference=at_text)
 
     # 获取商店
     async def shop_cmd(self,msg:Message,index:int,at_text):
@@ -577,6 +608,17 @@ class MyClient(botpy.Client):
                 second = content.find(' ',first+1)#第2个空格
                 third = content.rfind(' ')#第3个空格
                 await self.rts_cmd(message,index=int(content[first+1:second]),rating=int(content[second+1:third]),comment=content[third+1:],at_text=at_text)
+            elif '/shop-bg' in content:
+                # /shop-bg 图片url
+                content = content[content.find("/shop-bg"):]
+                if len(content) < 9:
+                    return await message.reply(content=f"参数长度不足，请检查您的参数\n栗子「/shop-bg 图片链接」")
+                if 'http' not in content:
+                    return await message.reply(content=f"您所发送命令中并未包含有效的图片链接！")
+
+                fisrt = content.find('http')
+                img_url = content[fisrt:]
+                await self.shop_bg_cmd(message,img_url,at_text=at_text)
             # 判断是否出现了速率超速或403错误
             elif Val.loginStat.Bool():
                 if '/login' in content or '/tfa' in content:

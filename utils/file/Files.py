@@ -28,6 +28,8 @@ UserAuthCache = {'acpw':{},'data':{},'qqbot':{},'tfa':{}}
 """存放用户的登录class，不需要保存到本地
 - {'acpw':{},'data':{},'qqbot':{},'tfa':{}} 
 """
+UserShopBgDict = FileManage("./log/UserShopBg.json")
+"""背景图设置；商店图缓存"""
 UserRtsDict = {}
 """用户皮肤评分选择列表"""
 
