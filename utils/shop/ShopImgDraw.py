@@ -12,6 +12,7 @@ from PIL import Image, ImageDraw, ImageFont, UnidentifiedImageError
 from ..valorant.Val import *
 from ..Gtime import *
 from ..file.Files import _log
+from typing import Union
 
 font_color = '#ffffff'  # 文字颜色：白色
 #用于临时存放图片的dict
@@ -58,6 +59,35 @@ def bg_comp(bg, img, x, y):
     bg.paste(img, position, img)
     return bg
 
+async def get_img_ratio(img:Union[Image.Image,str]) -> tuple[int,Image.Image]:
+    """判断图片比例是否为16-9或1-1
+    - retrun: (status_code,Image)
+    - status code:
+        - 169
+        - 11
+        - 0 err
+    """
+    # 如果是str，认为是url则请求
+    if isinstance(img,str):
+        if 'http' not in img: return (0,Image.Image()) # 不是正确的url
+        img = Image.open(io.BytesIO(await img_requestor(img)))
+    # 开始判断
+    w, h = img.size
+    _log.info(f"img_ratio | w:{w} h:{h}")
+    # 长/宽 - 1 的绝对值小于0.1,认为是1-1的图片
+    if abs(w/h - 1) <= 0.1:
+        return (11,img)
+    # 走到这里认为是16-9类型的图片
+    if h > w: # 高度大于宽度
+        img = img.rotate(90) # 反转90度
+        w,h = img.size
+        _log.info(f"img_ratio | img.rotate(90) | w:{w} h:{h}")
+    # 判断是否为16-9的图片
+    ratio_16_9 = 16/9
+    if abs(w/h - ratio_16_9) <= 0.2:
+        return (169,img)
+    # 其他
+    return (0,img)
 
 # 获取武器皮肤的图片
 def get_weapon_img(skinuuid: str, skin_icon: str):

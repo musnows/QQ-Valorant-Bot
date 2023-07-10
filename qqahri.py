@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 import time
-import aiohttp
 import traceback
-import os
+import os,io
 
 import botpy
 from aiohttp import client_exceptions
+from PIL import Image
 
 from botpy import errors
 from botpy.message import Message,DirectMessage
@@ -15,7 +15,7 @@ from utils import BotVip,task
 from utils.file.FileManage import save_all_file,_log,write_file
 from utils.file.Files import bot_config,UserAuthCache,UserPwdReauth,SkinRateDict,UserRtsDict,UserShopBgDict
 from utils.valorant import Val,Reauth,AuthCache
-from utils.shop import ShopApi,ShopRate,ShopImg
+from utils.shop import ShopApi,ShopRate,ShopImg,ShopImgDraw
 from utils.valorant.EzAuth import EzAuthExp,EzAuth
 from utils.Gtime import GetTime,GetTimeFromStamp
 from utils.Channel import listenConf
@@ -40,13 +40,6 @@ def help_text(bot_id:str):
     text+=f"机器人帮助频道，可在机器人介绍中点击加入！"
     return text
 
-async def img_requestor(img_url:str):
-    """图片获取器"""
-    if img_url and 'http' not in img_url:
-        raise Exception(f"http not in img_url: {img_url}")
-    async with aiohttp.ClientSession() as session:
-        async with session.get(img_url) as r:
-            return await r.read()
 
 # bot main
 class MyClient(botpy.Client):
@@ -191,12 +184,23 @@ class MyClient(botpy.Client):
             if 'data' not in UserShopBgDict:
                 UserShopBgDict['data'] = {}
             # 判断图片能不能正常获取
-            img_ret = await img_requestor(shop_bg_url)
+            img_ret = Image.open(io.BytesIO(await ShopImgDraw.img_requestor(shop_bg_url)))
+            img_ratio_ret,img_ret = await ShopImgDraw.get_img_ratio(img_ret)
+            if img_ratio_ret == 0:
+                text = "您所设置的图片比例错误！请传入1-1或者16-9的图片！"
+                await msg.reply(content=text,message_reference=at_text)
+                _log.info(
+                    f"shop-bg | Au:{msg.author.id} | {shop_bg_url} | ratio err"
+                )
+                return
+
             # 创建用户键值
             if msg.author.id not in UserShopBgDict['data']:
-                UserShopBgDict['data'][msg.author.id] = {}
-            # 设置图片
-            UserShopBgDict['data'][msg.author.id] = {"bg_url": shop_bg_url,"cache":"","cache_time":0}
+                UserShopBgDict['data'][msg.author.id] = {"bg":{"url": shop_bg_url,"ratio":img_ratio_ret},"cache":"","cache_time":0}
+            else:
+                UserShopBgDict['data'][msg.author.id]["bg"]["url"]= shop_bg_url
+                UserShopBgDict['data'][msg.author.id]["bg"]['ratio'] = img_ratio_ret
+            
             text = "商店背景图片设置成功！"
             await msg.reply(content=text,message_reference=at_text)
             _log.info(
@@ -247,13 +251,20 @@ class MyClient(botpy.Client):
 
             # 5.请求shop-draw接口，获取返回值
             draw_time = time.time() # 开始画图计时
+            bg_img_src = '' if msg.author.id not in UserShopBgDict['data'] else UserShopBgDict['data'][msg.author.id]['bg']['url']
+            bg_img_ratio = '1'
+            # 如果自定义背景图内返回值不为11，说明是169的图片
+            if msg.author.id in UserShopBgDict['data']:
+                img_ratio_temp =  UserShopBgDict['data'][msg.author.id]['bg']['ratio']
+                if img_ratio_temp != 11: bg_img_ratio = '0'
+
             # 5.1 采用本地画图
             if IMG_DRAW:
                 vrDict = await Val.fetch_vp_rp_dict(userdict) # api获取用户vp/rp
-                ret = await ShopImg.img_draw(list_shop,vrDict['vp'],vrDict['rp'])
+                ret = await ShopImg.img_draw(list_shop,vrDict['vp'],vrDict['rp'],img_src=bg_img_src,img_ratio=bg_img_ratio)
             # 5.2 采用kook-bot的api获取图片url
-            else: 
-                ret = await ShopApi.shop_draw_get(list_shop=list_shop,img_ratio="1")
+            else:
+                ret = await ShopApi.shop_draw_get(list_shop=list_shop,img_src=bg_img_src,img_ratio=bg_img_ratio)
 
             # 5.4 code不为0 出现错误
             if ret['code']:
