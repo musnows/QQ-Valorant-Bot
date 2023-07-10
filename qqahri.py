@@ -590,11 +590,11 @@ class MyClient(botpy.Client):
                 await self.kkn_cmd(msg=message,at_text=at_text)
             elif '/rate' in content:
                 # /rate 皮肤名字
+                content = content[content.find("/rate"):] # 把命令之前的内容给去掉
                 if len(content) < 6: # /rate加一个空格 至少会有6个字符
                     await message.reply(content=f"参数长度不足，请提供皮肤名\n栗子「/rate 皮肤名字」")
                     return
                 # 正常，分离参数
-                content = content[content.find("/rate"):] # 把命令之前的内容给去掉
                 first = content.find(' ') #第一个空格
                 await self.rate_cmd(message,name=content[first+1:],at_text=at_text)
             elif '/rts' in content:
